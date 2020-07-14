@@ -1,0 +1,26 @@
+opam-version: "2.0"
+name: "satysfi-stylo"
+version: "0.0.0"
+synopsis: "Stylo is a satysfactory graphics library for SATySFi."
+description: """
+Stylo is a satysfactory graphics library for SATySFi.
+"""
+maintainer: "Yu Shimura <mail@yuhr.org>"
+authors: "Yu Shimura <mail@yuhr.org>"
+license: "CC0-1.0"
+homepage: "https://github.com/yuhr/satysfi-stylo"
+bug-reports: "https://github.com/yuhr/satysfi-stylo/issues"
+dev-repo: "https://github.com/yuhr/satysfi-stylo"
+depends: [
+  "satysfi"
+  "satyrographos"
+  "satysfi-dist"
+  "satysfi-base"
+]
+build: [ ]
+install: [
+  ["satyrographos" "opam" "install"
+   "-name" "stylo"
+   "-prefix" "%{prefix}%"
+   "-script" "%{build}%/Satyristes"]
+]

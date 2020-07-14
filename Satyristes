@@ -1,0 +1,10 @@
+(version 0.0.2)
+
+(library
+  (name "stylo")
+  (version "0.0.0")
+  (sources
+    ((package "stylo.satyh" "./src/stylo.satyh")))
+  (opam "satysfi-stylo.opam")
+  (dependencies
+    ((base ())))
