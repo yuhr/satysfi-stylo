@@ -7,9 +7,23 @@ document (|
   title = {Stylo: the diagram toolkit for \SATySFi;};
   author = {Yu Shimura};
 |) '<
+
   +p {
-    Stylo is a satysfactory graphics library which focuses on drawing geometrical diagrams in its entirety. Rendered diagrams are meant to be comparable to \Xy-pic; package of \LaTeX;, but the code looks readable and descriptive.
+    Stylo is a satysfactory graphics library which focuses on drawing geometrical diagrams in its entirety. Rendered diagrams are meant to be comparable to \Xy;-pic package of \LaTeX;, but the code looks readable and descriptive.
   }
+  +diagram {
+    \stylo((0cm, 2cm, 2cm))((fun ctx -> (
+        open Stylo in
+        let p = start (0cm, 1cm) |> arc-around (0cm, 0cm) (Float.pi *. 2.0) |> terminate in
+        let (p1, p2) = split-at (Scale 0.5) p in
+        [
+          p1 |> solid;
+          label ctx {\show-length(length-of-path p1);} (0cm, 0cm);
+        ]
+      )));
+  }
+
+
   +chapter {Concepts} <
     +diagram {
       TBW (some amazing art)
@@ -18,12 +32,13 @@ document (|
       TBW
     }
   >
-  +section {Abstract Objects} <
+
+  +section {Geometricals} <
     +p {
       Datatypes described under this section are the essential ones, which represent abstract objects not tied to its actual appearance on the rendered paper.
     }
   >
-  +subsection {Point} <
+  +subsection {Points} <
     +diagram {
       TBW (illustration of the Big Dipper?)
     }
@@ -31,7 +46,7 @@ document (|
       A point—is the most primitive object in the world of graphics.
     }
   >
-  +subsection {Path} <
+  +subsection {Paths} <
     +diagram {
       TBW
     }
@@ -39,12 +54,12 @@ document (|
       A path—that's all about diagrams. Stylo has its own implementation of path instead of \SATySFi;'s built-in one, in order to implement a series of manipulation around path in depth. Constructed paths are transformed straightforward into built-in paths at the time of conversion into graphics.
     }
   >
-  +subsection {Position} <
+  +subsection {Positions} <
     +diagram {
       TBW
     }
     +p {
-      A position—is a waypoint on the path. Some path operations require some positions on the path to be specified by scalar values. In the term of specifying these positions, paths are always treated as if the starting point and ending point are connected to each other, regardless of being closed or not. That is:
+      A position—is a waypoint on the path. Some operations require some positions on a path to be specified by scalar values. In the term of specifying these positions, paths are always treated as if the starting point and ending point are connected to each other, regardless of being closed or not. That is:
     }
     +listing {
       * When specified values are negative, interpreted backwardedly from the ending point of the path.
@@ -58,7 +73,8 @@ document (|
       * When in length, interpreted assuming `0cm` is the starting point of the path.
     }
   >
-  +section {Decorative Objects} <
+
+  +section {Decoratives} <
     +p {
       In this section, style-related datatypes are shown in series.
     }
@@ -66,7 +82,7 @@ document (|
       * TBW
     }
   >
-  +subsection {Line} <
+  +subsection {Pins} <
     +diagram {
       TBW
     }
@@ -74,7 +90,7 @@ document (|
       TBW
     }
   >
-  +subsection {Arrowhead} <
+  +subsection {Wires} <
     +diagram {
       TBW
     }
@@ -82,7 +98,17 @@ document (|
       TBW
     }
   >
-  +subsection {Label} <
+  +subsection {Arrowheads} <
+    +diagram {
+      TBW
+    }
+    +p {
+      Pins are also used as arrowheads. TBW
+    }
+  >
+
+  +section {Textuals} <>
+  +subsection {Labels} <
     +diagram {
       TBW
     }
@@ -90,29 +116,23 @@ document (|
       TBW
     }
   >
-  +section {Others} <>
-  +subsection {Terminology} <
+
+  +section {Terminology} <
     +p {
       Some special terms appear throughout this documentation.
     }
   >
+
+
   +chapter {Features} <
     +p {
-      There's a set of utility functions for constructing, splicing, measuring and decorating paths. Example diagrams are following\; see how it works.
+      There's a set of utility functions for constructing, splicing, measuring and decorating paths.
     }
     +diagram {
-      \stylo((0cm, 2cm, 2cm))((fun ctx -> (
-        open Stylo in
-        let p = start (0cm, 1cm) |> arc-around (0cm, 0cm) (Float.pi *. 2.0) |> terminate-path in
-        let (p1, p2) = split-at (Scale 0.5) p in
-        [
-          p1 |> solid;
-          label ctx {\show-length(length-of-path p1);} (0cm, 0cm);
-        ]
-      )));
+      TBW
     }
-    +code (`TBW`);
   >
+
   +section {Constructing paths} <
     +p {
       Paths are constructed in several ways\; using predefined functions for idiomatic shapes, drawing from scratch, and composing them.
@@ -137,11 +157,11 @@ document (|
     +command (`terminate`) (tPRP --> tPATH) {
       Terminates a pre-path leaving it open.
     }
-    +command (`terminate-with-line`) (tPRP --> tPATH) {
-      Terminates a pre-path closing with a line.
+    +command (`close-with-line`) (tPRP --> tPATH) {
+      Closes a pre-path with a line.
     }
-    +command (`terminate-with-bezier`) ((tPT *** tPT) --> (tPRP --> tPATH)) {
-      Terminates a pre-path closing with a Bézier curve. Two points stand for control points.
+    +command (`close-with-bezier`) ((tPT *** tPT) --> (tPRP --> tPATH)) {
+      Closes a pre-path with a Bézier curve. Two points stand for control points.
     }
   >
   +subsection {Arcs} <
@@ -161,6 +181,13 @@ document (|
       Same as `arc-to-for` with the exception of its opposed arc so tangented like a pair of needles. Not implemented yet.
     }
   >
+
+  +section {Predefined shapes} <
+    +p {
+      Not implemented yet.
+    }
+  >
+
   +section {Splicing paths} <
     +p {
       Manipulating constructed paths is the main way to produce complex paths.
@@ -182,10 +209,10 @@ document (|
   >
   +subsection {Trim} <
     +p {
-      Paths can be trimmed at arbitrary endpositions. 切り落としの始端位置から終端位置への向きがパスを逆行する場合、切り出されるパスの向きもそれに従う。Not implemented yet.
+      Paths can be trimmed at an arbitrary endpositions. 切り落としの始端位置から終端位置への向きがパスを逆行する場合、切り出されるパスの向きもそれに従う。Not implemented yet.
     }
     +command (`trim-at`) (tPOS *** tPOS --> (tPATH --> tPATH)) {
-      Trims a path at given endpositions. Just match-cased into `trim-at-in-scale` or `trim-at-in-length`.
+      Trims a path at a given endpositions. Just match-cased into `trim-at-in-scale` or `trim-at-in-length`.
     }
     +command (`trim-at-in-scale`) (tF *** tF --> (tPATH --> tPATH)) {
       パス全体の長さに対して、パスの始端点を`0.0`、終端点を`1.0`とする無次元数で切り落とし位置を指定し、パスの部分を切り出す。
@@ -199,6 +226,7 @@ document (|
       Not implemented yet.
     }
   >
+
   +section {Measurement} <
     +p {
       Stylo provides a set of features that supports measuring distances, lengths, areas and angles amongst geometrical objects.
@@ -219,6 +247,7 @@ document (|
       Angles are interpreted all in radians. TBW
     }
   >
+
   +section {Composite paths} <
     +p {
       Not implemented yet.
@@ -227,6 +256,19 @@ document (|
   +subsection {Boolean operations} <
     +p {
       Not implemented yet.
+    }
+  >
+
+
+  +chapter {Special syntaxes} <
+    +p {
+      Stylo provides some syntax sugars for specific use cases.
+    }
+  >
+
+  +section {Grid layout} <
+    +p {
+      An equivalent feature to \Xy;-matrices of \Xy;-pic. Not implemented yet.
     }
   >
 >

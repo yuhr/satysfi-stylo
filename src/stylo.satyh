@@ -13,14 +13,9 @@ type position = Scale of float | Length of length
 
 module Stylo : sig
 
-  type internal-path
-  type internal-pre-path
-
-  type stylo-path-element
   type stylo-pre-path
   type stylo-path
 
-  type segment
   type stroke-width
   type stroke-color
   type fill-color
@@ -31,20 +26,19 @@ module Stylo : sig
   type render-context
   type context
 
-  val start-path: point -> stylo-pre-path
+  val start: point -> stylo-pre-path
+  val start-with-tangent: point -> point -> stylo-pre-path
   val line-to: point -> stylo-pre-path -> stylo-pre-path
   val bezier-to: point * point * point -> stylo-pre-path -> stylo-pre-path
-  val terminate-path: stylo-pre-path -> stylo-path
+  val terminate: stylo-pre-path -> stylo-path
 
-  %val terminate-path-with-arrowhead: stylo-pre-path -> stylo-path
-  val path-nil: stylo-path
+  %val terminate-with-arrowhead: stylo-pre-path -> stylo-path
   val shift-point: point -> point -> point
   val unshift-point: point -> point -> point
   val rotate-point: float -> point -> point
   val rotate-point-around: point -> float -> point -> point
   val scale-point: float -> point -> point
   val scale-point-around: point -> float -> point -> point
-  val segment: point * point -> point
   val centerpoint: point * point -> point
 
   val split-bezier-at: position -> bezier -> bezier * bezier
@@ -66,8 +60,6 @@ module Stylo : sig
   val arc-to-for: point -> point -> stylo-pre-path -> stylo-pre-path
 
   direct \stylo: [length * length * length; context -> graphics list] inline-cmd
-  val start: point -> stylo-pre-path
-  val start-with-tangent: point -> point -> stylo-pre-path
   val line-to: point -> stylo-pre-path -> stylo-pre-path
   val stroke: length -> color -> stylo-path -> graphics
   val solid: stylo-path -> graphics
@@ -76,14 +68,23 @@ module Stylo : sig
 
 end = struct
 
+  % backup indentifiers for internals
   type internal-path = path
   type internal-pre-path = pre-path
+  let internal-start-path = start-path
+  let internal-line-to = line-to
+  let internal-bezier-to = bezier-to
+  let internal-terminate-path = terminate-path
+  let internal-close-with-line = close-with-line
+  let internal-close-with-bezier = close-with-bezier
+  let internal-stroke = stroke
 
-  type stylo-path-element = LineTo of point | CubicBezierTo of point * point * point
-  type stylo-path-ending = LineToStart | CubicBezierToStart of point * point
-  type stylo-pre-path = point option * point * stylo-path-element list
-  type stylo-path = point * stylo-path-element list * stylo-path-ending option
-  type stylo-composite-path = stylo-path list
+  % prefixed because of #81 (https://github.com/gfngfn/SATySFi/issues/81)
+  type path-element = LineTo of point | CubicBezierTo of point * point * point
+  type path-closing = LineToStart | CubicBezierToStart of point * point
+  type stylo-pre-path = point option * point * path-element list
+  type stylo-path = point * path-element list * path-closing option
+  type composite-path = stylo-path list
 
   type segment = point * point
   type stroke-width = length
@@ -96,20 +97,12 @@ end = struct
   type render-context = path-context
   type context = render-context list * render-options
 
-  let internal-start-path = start-path
-  let internal-line-to = line-to
-  let internal-bezier-to = bezier-to
-  let internal-terminate-path = terminate-path
-  let internal-close-with-line = close-with-line
-  let internal-close-with-bezier = close-with-bezier
-  let internal-stroke = stroke
-
   let convert-path-to-internal stylo-path =
     let (start, elements, ending) = stylo-path in
     let stylo-pre-path = elements |> List.fold-left (fun stylo-pre-path element -> (
       match element with
-      | LineTo p -> internal-line-to p stylo-pre-path
-      | CubicBezierTo (cp1, cp2, p) -> internal-bezier-to cp1 cp2 p stylo-pre-path
+      | LineTo e -> internal-line-to e stylo-pre-path
+      | CubicBezierTo (cp1, cp2, e) -> internal-bezier-to cp1 cp2 e stylo-pre-path
     )) (internal-start-path start) in
     match ending with
     | Some ending -> (match ending with
@@ -117,8 +110,8 @@ end = struct
       | CubicBezierToStart (cp1, cp2) -> internal-close-with-bezier cp1 cp2 stylo-pre-path)
     | None -> internal-terminate-path stylo-pre-path
 
-  let convert-composite-path-to-internal stylo-composite-path =
-    stylo-composite-path
+  let convert-composite-path-to-internal composite-path =
+    composite-path
     |> List.map convert-path-to-internal
     |> List.map Option.some
     |> List.fold-left (fun prev curr -> (
@@ -128,14 +121,26 @@ end = struct
     )) None
     |> Option.unwrap
 
-  let start-path p = (None, p, List.nil)
-  let start-path-with-tangent t p = (Some t, p, List.nil)
-  let line-to p stylo-pre-path =
-    let (pre, start, elements) = stylo-pre-path in (pre, start, LineTo p :: elements)
-  let bezier-to (cp1, cp2, p) stylo-pre-path =
-    let (pre, start, elements) = stylo-pre-path in (pre, start, CubicBezierTo (cp1, cp2, p) :: elements)
-  let terminate-path stylo-pre-path =
-    let (pre, start, elements) = stylo-pre-path in (start, List.reverse elements, None)
+
+  let start p = (None, p, List.nil)
+
+  let start-with-tangent t p = (Some t, p, List.nil)
+
+  let line-to e (pre, start, elements) =
+    (pre, start, LineTo e :: elements)
+
+  let bezier-to (cp1, cp2, e) (pre, start, elements) =
+    (pre, start, CubicBezierTo (cp1, cp2, e) :: elements)
+
+  let terminate (_, start, elements) =
+    (start, List.reverse elements, None)
+
+  let close-with-line (_, start, elements) =
+    (start, List.reverse elements, LineToStart)
+
+  let close-with-bezier cps (_, start, elements) =
+    (start, List.reverse elements, CubicBezierToStart cps)
+
   let current-point stylo-pre-path =
     let (pre, start, elements) = stylo-pre-path in
     match List.uncons elements with
@@ -143,19 +148,21 @@ end = struct
     | Some (first, _) -> (match first with
       | LineTo p -> p
       | CubicBezierTo (_, _, p) -> p)
+
   let current-tangent stylo-pre-path =
     let (pre, start, elements) = stylo-pre-path in
-    match List.uncons elements with
-    | None -> (match pre with
+    match elements with
+    | [] -> (match pre with
       | None -> (start, start)
       | Some pre -> (start, pre))
-    | Some (first, rest) -> (match first with
-      | LineTo p1 -> (match List.uncons rest with
-        | None -> (p1, start)
-        | Some (second, _) -> (match second with
+    | first :: rest -> (match first with
+      | LineTo p1 -> (match rest with
+        | [] -> (p1, start)
+        | second :: _ -> (match second with
           | LineTo p2 -> (p1, p2)
           | CubicBezierTo (_, _, p2) -> (p1, p2)))
       | CubicBezierTo (_, cp2, p) -> (p, cp2))
+
   let stroke l c p = internal-stroke l c (convert-path-to-internal p)
 
   let half-length l = l /' 2.0cm |> Length.of-cm
@@ -263,7 +270,7 @@ end = struct
     | LineTo e -> length-of-line (s, e)
     | CubicBezierTo b -> length-of-bezier (s, b)
 
-  let length-of-path-ending s ending e =
+  let length-of-path-closing s ending e =
     match ending with
     | Some ending -> (match ending with
       | LineToStart -> length-of-line (s, e)
@@ -313,7 +320,7 @@ end = struct
     let (start-point, elements, ending) = p in
     let length-of-elements = length-of-path-elements start-point elements in
     let last-point = last-point-of-path-elements start-point elements in
-    length-of-elements +' length-of-path-ending last-point ending start-point
+    length-of-elements +' length-of-path-closing last-point ending start-point
 
   let mod-length l1 l2 = l1 -' l2 *' (l1 /' l2 |> Float.floor)
   let (++) l1 l2 = List.append l1 l2
@@ -364,24 +371,22 @@ end = struct
   | Scale p -> split-at-in-scale p
   | Length p -> split-at-in-length p
 
-  % let terminate-path-with-arrowhead p =
+  % let terminate-with-arrowhead p =
   %   let s = current-point p in
   %   let (tx, ty) = current-tangent p |> segment in
   %   let a = atan2 (ty /' 1cm) (tx /' 1cm) in
   %   let arrowhead-left-side =
   %     start-path (0cm, 0cm)
   %     |> bezier-to ((-1pt, 0pt), (-5pt, 1pt), (-6pt, 2pt))
-  %     |> terminate-path in
+  %     |> terminate in
   %   let arrowhead-right-side =
   %     start-path (0cm, 0cm)
   %     |> bezier-to ((-1pt, 0pt), (-5pt, -1pt), (-6pt, -2pt))
-  %     |> terminate-path in
+  %     |> terminate in
   %   unite-path arrowhead-left-side arrowhead-right-side
   %   |> rotate-path (0cm, 0cm) a
   %   |> shift-path s
-  %   |> unite-path (p |> terminate-path)
-
-  let path-nil = start-path (0cm, 0cm) |> terminate-path
+  %   |> unite-path (p |> terminate)
 
   let shift-point (ox, oy) (x, y) = (x +' ox, y +' oy)
   let unshift-point (ox, oy) (x, y) = (x -' ox, y -' oy)
@@ -567,9 +572,6 @@ end = struct
   let-inline ctx \stylo (width, height, depth) them =
     inline-graphics width height depth (fun (x, y) ->
       them ctx |> List.map (shift-graphics (x, y)))
-
-  let start = start-path
-  let start-with-tangent = start-path-with-tangent
   let solid = stroke 0.75pt Color.black
   let label ctx it p = read-inline ctx it |> draw-text-center p
 

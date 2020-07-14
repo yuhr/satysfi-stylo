@@ -17,14 +17,14 @@ let-inline \show-length l =
 let no-break ib =
   inline-frame-outer (0pt, 0pt, 0pt, 0pt) (fun _ _ _ _ -> []) ib
 
-let-inline ctx \Xy-pic =
+let-inline ctx \Xy =
   let size = get-font-size ctx in
   let f = read-inline ctx in
   let fY = ctx |> set-manual-rising (0pt -' (size *' 0.25))
                |> read-inline
   in
   let ib =
-    f {X} ++ kern (size *' 0.125) ++ fY {Y} ++ f {-pic}
+    f {X} ++ kern (size *' 0.125) ++ fY {Y}
   in
     script-guard Latin (no-break ib)
 
