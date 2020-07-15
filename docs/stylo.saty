@@ -7,15 +7,26 @@ document (|
   title = {Stylo: the diagram toolkit for \SATySFi;};
   author = {Yu Shimura};
 |) '<
-
   +p {
     Stylo is a satysfactory graphics library which focuses on drawing geometrical diagrams in its entirety. Rendered diagrams are meant to be comparable to \Xy;-pic package of \LaTeX;, but the code looks readable and descriptive.
   }
+  +demo () (
+    open Stylo in
+    let (s, t) = ((1cm, 0cm), (-1cm, 0cm)) in
+    let (a, b, c, d) = ((1cm, 1cm), (0cm, 1cm), (-0.5cm, 1cm), (-1cm, 1cm)) in
+    let arc-with = arc-with-around b in
+    [
+      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
+      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
+      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
+      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
+    ]
+  );
   +diagram {
     \stylo((0cm, 2cm, 2cm))(open Stylo in
-      let p = start (0cm, 1cm) |> arc-around (0cm, 0cm) (Degrees 360.0) |> close in
+      let p = start (0cm, 1cm) |> arc-with-around (0cm, 0cm) (Degrees 360.0) |> close in
       let (p1, p2) = split-at (Scale 0.5) p in
-      let drawn = p in
+      let drawn = p1 in
       [
         drawn |> solid;
         {\show-length(length-of-path drawn);} |> label-at (0cm, 0cm);
@@ -25,268 +36,301 @@ document (|
   }
 
 
-  +chapter {Concepts} <
+  +chapter {Concepts and datatypes} <
     +diagram {
       TBW (some amazing art)
     }
     +p {
       TBW
     }
+
+    +section {Geometricals} <
+      +p {
+        Concepts described under this section are purely geometrical and are essentially not tied to actual appearance when rendered.
+      }
+      +subsection {Points} <
+        +diagram {
+          TBW (illustration of the Big Dipper?)
+        }
+        +p {
+          A point is one of the most primitive object in the world of graphics.
+        }
+      >
+      +subsection {Paths} <
+        +diagram {
+          TBW
+        }
+        +p {
+          A path—that's all about diagrams. Stylo uses its own implementation of path instead of \SATySFi;'s built-in one, in order to achieve a series of manipulation around paths in depth. Constructed paths are transformed into built-in representations at the time of conversion into graphics.
+        }
+        +p {
+          A path consists of two or more path segments.
+        }
+        +p {
+          Path ending can be closed or not. The latter case is called “open” or “terminated”.
+        }
+      >
+      +subsection {Positions} <
+        +diagram {
+          TBW
+        }
+        +p {
+          A position is a waypoint on a path. Some operations require some positions on a path to be specified by scalar values. Usually, in the term of specifying these positions, paths are always treated as if the starting point and ending point are connected to each other, regardless of being closed or not. That is:
+        }
+        +listing {
+          * When specified values are negative, interpreted backwardedly from the ending point of the path.
+          * When the absolutes of specified values exceed the total length of the path, interpreted cyclically through the path.
+        }
+        +p {
+          Positions can be specified in scale or length. That is:
+        }
+        +listing {
+          * When in scale, interpreted assuming `0.0` and `1.0` are the starting point and the ending point of the path respectively.
+          * When in length, interpreted assuming `0cm` is the starting point of the path.
+        }
+      >
+      +subsection {Angles} <
+        +diagram {
+          TBW (some angels?)
+        }
+        +p {
+          Angles can be specified in radians or degrees.
+        }
+      >
+    >
+
+    +section {Decoratives} <
+      +p {
+        In this section, style-related datatypes are shown in series.
+      }
+      +listing {
+        * TBW
+      }
+      +subsection {Pins} <
+        +diagram {
+          TBW
+        }
+        +p {
+          TBW
+        }
+      >
+      +subsection {Wires} <
+        +diagram {
+          TBW
+        }
+        +p {
+          TBW
+        }
+      >
+      +subsection {Arrows} <
+        +diagram {
+          TBW
+        }
+        +p {
+          An arrow is constructed from a wire and one or two pin(s). TBW
+        }
+      >
+    >
+
+    +section {Textuals} <
+      +subsection {Labels} <
+        +diagram {
+          TBW
+        }
+        +p {
+          TBW
+        }
+      >
+    >
   >
 
-  +section {Geometricals} <
-    +p {
-      Concepts described under this section are purely geometrical and are essentially not tied to actual appearance when rendered.
-    }
-  >
-  +subsection {Points} <
-    +diagram {
-      TBW (illustration of the Big Dipper?)
-    }
-    +p {
-      A point is one of the most primitive object in the world of graphics.
-    }
-  >
-  +subsection {Paths} <
-    +diagram {
-      TBW
-    }
-    +p {
-      A path—that's all about diagrams. Stylo uses its own implementation of path instead of \SATySFi;'s built-in one, in order to achieve a series of manipulation around paths in depth. Constructed paths are transformed into built-in representations at the time of conversion into graphics.
-    }
-    +p {
-      A path consists of two or more path segments.
-    }
-    +p {
-      Path ending can be closed or not. The latter case is called “open” or “terminated”.
-    }
-  >
-  +subsection {Positions} <
-    +diagram {
-      TBW
-    }
-    +p {
-      A position is a waypoint on a path. Some operations require some positions on a path to be specified by scalar values. Usually, in the term of specifying these positions, paths are always treated as if the starting point and ending point are connected to each other, regardless of being closed or not. That is:
-    }
-    +listing {
-      * When specified values are negative, interpreted backwardedly from the ending point of the path.
-      * When the absolutes of specified values exceed the total length of the path, interpreted cyclically through the path.
-    }
-    +p {
-      Positions can be specified in scale or length. That is:
-    }
-    +listing {
-      * When in scale, interpreted assuming `0.0` and `1.0` are the starting point and the ending point of the path respectively.
-      * When in length, interpreted assuming `0cm` is the starting point of the path.
-    }
-  >
-  +subsection {Angles} <
-    +diagram {
-      TBW (some angels?)
-    }
-    +p {
-      Angles can be specified in radians or degrees.
-    }
-  >
-
-  +section {Decoratives} <
-    +p {
-      In this section, style-related datatypes are shown in series.
-    }
-    +listing {
-      * TBW
-    }
-  >
-  +subsection {Pins} <
-    +diagram {
-      TBW
-    }
-    +p {
-      TBW
-    }
-  >
-  +subsection {Wires} <
-    +diagram {
-      TBW
-    }
-    +p {
-      TBW
-    }
-  >
-  +subsection {Arrows} <
-    +diagram {
-      TBW
-    }
-    +p {
-      An arrow is constructed from a wire and one or two pin(s). TBW
-    }
-  >
-
-  +section {Textuals} <>
-  +subsection {Labels} <
-    +diagram {
-      TBW
-    }
-    +p {
-      TBW
-    }
-  >
-
-
-  +chapter {Constructs} <
+  +chapter {Constructs and functions} <
     +p {
       In the world of Stylo, the noun “construct” means “instruction”, “command” or “operation”. There's a set of constructs for drawing, splicing, measuring and decorating paths.
     }
-    +diagram {
-      TBW
-    }
-  >
 
-  +section {Constructing paths} <
-    +p {
-      Paths can be constructed from scratch using these constructs.
-    }
-  >
-  +subsection {Basic constructs} <
-    +p{
-      These constructs are just straightforward to \SATySFi;'s built-in functions with a few exceptions.
-    }
-    +command (`start`) (tPT --> tPRP) {
-      Starts a pre-path from a given point.
-    }
-    +command (`start-with-tangent`) (tPT --> (tPT --> tPRP)) {
-      Starts a pre-path from a given point, with a phantom tangent which may be referred by the subsequent construct such as `arc-to-for`. The first argument is a point representing the tangent from the second argument which is the starting point.
-    }
-    +command (`line-to`) (tPRP --> (tPT --> tPATH)) {
-      Draws a line to a given point.
-    }
-    +command (`bezier-to`) (tPRP --> (tTUPLE tPT [tPT; tPT] --> tPATH)) {
-      Draws a Bézier curve to the last given point with the first two given control points.
-    }
-    +command (`terminate`) (tPRP --> tPATH) {
-      Terminates a pre-path leaving it open.
-    }
-    +command (`close`) (tPRP --> tPATH) {
-      Close a pre-path if the current point is meeting to the starting point, otherwise terminates leaving it open. Normally you want to use this construct instead of `terminate`.
-    }
-    +command (`close-with-line`) (tPRP --> tPATH) {
-      Closes a pre-path with a line.
-    }
-    +command (`close-with-bezier`) (tTUPLE tPT [tPT] --> (tPRP --> tPATH)) {
-      Closes a pre-path with a Bézier curve. Two points stand for control points.
-    }
-    +command (`restart`) (tPATH --> tPRP) {
-      Restarts a path. Yields the same result as `restart-at (Scale 1.0)`.
-    }
-    +command (`restart-at`) (tPOS --> (tPATH --> tPRP)) {
-      Restarts a path at a given position. Passing a zero position returns the same result as `start`.
-    }
-  >
-  +subsection {Arcs} <
-    +p {
-      Stylo has a powerful set of constructs for drawing arcs in different ways.
-    }
-    +command (`arc-around`) (tPT --> (tA --> (tPRP --> tPRP))) {
-      Draws an arc around a given point, with a given angle.
-    }
-    +command (`arc-aside`) (tL --> (tA --> (tPRP --> tPRP))) {
-      Draws an arc around a given point which is a given length away from the current point orthogonally to the current tangent, with a given angle. Positive length means the left direction.
-    }
-    +command (`arc-to-for`) (tPT --> (tPT --> (tPRP --> tPRP))) {
-      Draws an arc to the first given point, referring the current tangent and the second given point as a forwarding tangent. As a result, the arc drawn is smoothly tangented to the current pre-path and also to the subsequent construct as long as it uses the identical point to the forwarding tangent as its starting tangent.
-    }
-    +command (`arc-to-for-opposite`) (tPT --> (tPT --> (tPRP --> tPRP))) {
-      Same as `arc-to-for` with the exception of its opposed arc so tangented like a pair of needles. Not implemented yet.
-    }
-  >
-
-  +section {Predefined shapes} <
-    +p {
-      Not implemented yet.
-    }
-  >
-
-  +section {Splicing paths} <
-    +p {
-      Manipulating constructed paths is the main way to produce complex paths.
-    }
-    +subsection {Splitting} <
+    +section {Naming convention} <
       +p {
-        Paths can be splitted into subpaths at an arbitrary position.
+        Constructs are named so that what each parameter means can be guessed, in the form of `<x>-<t0>-<t1>-...-<tn>`.
       }
-      +command (`split-at`) (tPOS --> (tPATH --> tTUPLE tPATH [tPATH])) {
-        Splits a path in two at a given position.
+      +listing {
+        * `<x>` means what is drawn or performed by the construct, such as `start`, `arc` and `split`.
+        * `<t0>` means what type the paenultima parameter takes.
+        * `<t1>` means what type the antepaenultima parameter takes.
+        * And so on. The ultima parameter is always a pre-path, so it's not appeared in the name.
       }
-      +command (`split-into-at`) (tPOS --> (tF --> (tPATH --> tLIST tPATH))) {
-        Splits a path into a given number of subpaths, starting at a given position. The division number can be fractional and/or negative. When positive, the fractioned subpath comes in last. When negative, comes in first. Passing a zero returns an empty list.
+      +p {
+        Note that these specifiers are appeared in reverse order. The full list of type specifiers is below.
       }
-      +command (`split-incr-at`) (tPOS --> (tPOS --> (tPATH --> tLIST tPATH))) {
-        Splits a path in increments of a second given position, starting at a first given position. The incremental position can be negative. When positive, the fractioned subpath comes in last. When negative, comes in first. Passing a zero always results in an infinite loop. Unusually, when the incremental position longer than the length of the path, no split is performed and it returns just the original path wrapped in a list.
+      +listing {
+        * `to`: A point, to which a translation is performed or a path is drawn.
+        * `upto`: A length, upto which the pre-path is drawn.
+        * `by`: An angle, by which a rotation is performed or an arc is drawn.
+        * `around`: A point, around which a linear transformation is performed or an arc is drawn.
+        * `at`: A position on the path, at which a cut or join is performed.
+      }
+      +p {
+        For example, `arc-with-around` firstly takes a centerpoint of the arc, secondly takes , and lastly takes a pre-path or a path.
       }
     >
-    +subsection {Trimming} <
+
+    +section {Constructing paths} <
       +p {
-        Paths can be trimmed at an arbitrary endpositions. 切り落としの始端位置から終端位置への向きがパスを逆行する場合、切り出されるパスの向きもそれに従う。Not implemented yet.
+        Paths can be constructed from scratch using these constructs.
       }
-      +command (`trim-at`) (tTUPLE tPOS [tPOS] --> (tPATH --> tPATH)) {
-        Trims a path at given endpositions.
-      }
+
+      +subsection {Basic constructs} <
+        +p{
+          These constructs are just straightforward to \SATySFi;'s built-in functions with a few exceptions.
+        }
+        +command (`start`) (tPT --> tPRP) {
+          Starts a pre-path from a given point.
+        }
+        +command (`start-with-tangent`) (tPT --> (tPT --> tPRP)) {
+          Starts a pre-path from a given point, with a phantom tangent which may be referred by the subsequent construct such as `arc-to-for`. The first argument is a point representing the tangent from the second argument which is the starting point.
+        }
+        +command (`line-to`) (tPRP --> (tPT --> tPATH)) {
+          Draws a line to a given point.
+        }
+        +command (`bezier-to`) (tPRP --> (tTUPLE tPT [tPT; tPT] --> tPATH)) {
+          Draws a Bézier curve to the last given point with the first two given control points.
+        }
+        +command (`terminate`) (tPRP --> tPATH) {
+          Terminates a pre-path leaving it open.
+        }
+        +command (`close`) (tPRP --> tPATH) {
+          Close a pre-path if the current point is meeting to the starting point, otherwise terminates leaving it open. Normally you want to use this construct instead of `terminate`.
+        }
+        +command (`close-with-line`) (tPRP --> tPATH) {
+          Closes a pre-path with a line.
+        }
+        +command (`close-with-bezier`) (tTUPLE tPT [tPT] --> (tPRP --> tPATH)) {
+          Closes a pre-path with a Bézier curve. Two points stand for control points.
+        }
+        +command (`restart`) (tPATH --> tPRP) {
+          Restarts a path. Yields the same result as `restart-at (Scale 1.0)`.
+        }
+        +command (`restart-at`) (tPOS --> (tPATH --> tPRP)) {
+          Restarts a path at a given position. Passing a zero position returns the same result as `start`.
+        }
+      >
+      +subsection {Drawing arcs} <
+        +p {
+          Stylo has a powerful set of constructs for drawing arcs in different ways.
+        }
+        +command (`arc-around`) (tPT --> (tA --> (tPRP --> tPRP))) {
+          Draws an arc around a given point, with a given angle.
+        }
+        +command (`arc-aside`) (tL --> (tA --> (tPRP --> tPRP))) {
+          Draws an arc around a given point which is a given length away from the current point orthogonally to the current tangent, with a given angle. Positive length means the left direction.
+        }
+        +command (`arc-to-for`) (tPT --> (tPT --> (tPRP --> tPRP))) {
+          Draws an arc, followed by a line if needed, to the first given point, referring the current tangent and the second given point as a forwarding tangent. As a result, the arc drawn is smoothly tangented to the current pre-path and also to the subsequent construct as long as it uses the identical point to the forwarding tangent as its starting tangent. See the illustration below:
+        }
+        +demo () (
+          []
+        );
+        +command (`arc-to-for-counter`) (tPT --> (tPT --> (tPRP --> tPRP))) {
+          Same as `arc-to-for`, except that it draws the counter arc against what `arc-to-for` draws thereby tangented like a pair of needles. Not implemented yet.
+        }
+      >
+      +subsection {Tracing another path} <
+        +p {
+          Not implemented yet.
+        }
+      >
     >
-    +subsection {Tracing} <
+
+    +section {Predefined shapes} <
       +p {
         Not implemented yet.
       }
     >
+
+    +section {Splicing paths} <
+      +p {
+        Splicing constructed paths is one of the main ways to produce complex paths.
+      }
+      +subsection {Splitting} <
+        +p {
+          Paths can be splitted into subpaths at an arbitrary position.
+        }
+        +command (`split-at`) (tPOS --> (tPATH --> tTUPLE tPATH [tPATH])) {
+          Splits a path in two at a given position.
+        }
+        +command (`split-into-at`) (tPOS --> (tF --> (tPATH --> tLIST tPATH))) {
+          Splits a path into a given number of subpaths, starting at a given position. The division number can be fractional and/or negative. When positive, the fractioned subpath comes in last. When negative, comes in first. Passing a zero returns an empty list.
+        }
+        +command (`split-incr-at`) (tPOS --> (tPOS --> (tPATH --> tLIST tPATH))) {
+          Splits a path in increments of a second given position, starting at a first given position. The incremental position can be negative. When positive, the fractioned subpath comes in last. When negative, comes in first. Passing a zero always results in an infinite loop. Unusually, when the incremental position longer than the length of the path, no split is performed and it returns just the original path wrapped in a list.
+        }
+      >
+      +subsection {Trimming} <
+        +p {
+          Paths can be trimmed at an arbitrary endpositions. 切り落としの始端位置から終端位置への向きがパスを逆行する場合、切り出されるパスの向きもそれに従う。Not implemented yet.
+        }
+        +command (`trim-at`) (tTUPLE tPOS [tPOS] --> (tPATH --> tPATH)) {
+          Trims a path at given endpositions.
+        }
+      >
+    >
+
+    +section {Measuring} <
+      +p {
+        Stylo provides a set of features that supports measuring distances, lengths, areas and angles amongst geometrical objects.
+      }
+      +subsection {Distances} <
+        +p {
+          TBW
+        }
+      >
+      +subsection {Lengths} <
+        +p {
+          Stylo's internal representations of lengths are all in centimeters, thereby returned lengths of these functions are all in centimeters.
+        }
+      >
+      +subsection {Areas} <
+        +p {
+          TBW
+        }
+      >
+      +subsection {Angles} <
+        +p {
+          Stylo's internal representations of angles are all in radians, thereby returned angles of these functions are all in radians.
+        }
+      >
+    >
+
+    +section {Compositing paths} <
+      +p {
+        Not implemented yet.
+      }
+      +subsection {Boolean operations} <
+        +p {
+          Not implemented yet.
+        }
+      >
+    >
+
+    +section {Transforming paths} <
+      +p {
+        Stylo supports affine transformations of points, paths and graphics. Not implemented yet.
+      }
+    >
   >
 
-  +section {Measuring} <
-    +p {
-      Stylo provides a set of features that supports measuring distances, lengths, areas and angles amongst geometrical objects.
-    }
-  >
-  +subsection {Distances} <
-    +p {
-      TBW
-    }
-  >
-  +subsection {Lengths} <
-    +p {
-      Stylo's internal representations of lengths are all in centimeters, thereby returned lengths of these functions are all in centimeters.
-    }
-  >
-  +subsection {Areas} <
-    +p {
-      TBW
-    }
-  >
-  +subsection {Angles} <
-    +p {
-      Stylo's internal representations of angles are all in radians, thereby returned angles of these functions are all in radians.
-    }
-  >
 
-  +section {Compositing paths} <
-    +p {
-      Not implemented yet.
-    }
-  >
-  +subsection {Boolean operations} <
-    +p {
-      Not implemented yet.
-    }
-  >
-
-  +section {Transforming paths} <
-    +p {
-      Stylo supports affine transformations of points, paths and graphics. Not implemented yet.
-    }
-  >
-
-
-  +chapter {Special syntaxes} <
+  +chapter {Syntax sugars} <
     +p {
       Stylo provides some syntax sugars for specific use cases.
     }
+
+    +section {Special sequences} <
+      +p {
+        
+      }
+    >
+
     +section {Grid layout} <
       +p {
         An equivalent feature to \Xy;-matrices of \Xy;-pic. Not implemented yet.

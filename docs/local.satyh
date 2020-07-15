@@ -5,6 +5,7 @@
 @require: hdecoset
 @require: base/float
 @require: base/string
+@import: ../src/stylo
 
 let kern len = inline-skip (0pt -' len)
 
@@ -157,6 +158,14 @@ let command-scheme ctx ib-name ty inner =
       (indent, 0pt, 0pt, 0pt) VDecoSet.empty (fun ctx ->
           form-paragraph (ctx |> set-paragraph-margin 0pt 0pt) (ib-inner ++ inline-fil)
         )
+
+
+let-block ctx +demo c fs =
+  let g = read-inline ctx {\stylo((2cm, 2cm, 0cm))(fs);} in
+  block-frame-breakable (ctx |> set-paragraph-margin gap-command gap-paragraph)
+    (2cm, 2cm, 0pt, 0pt) VDecoSet.empty (fun ctx ->
+        form-paragraph (ctx |> set-paragraph-margin 0pt 0pt) g
+      )
 
 
 let name-context ctx =

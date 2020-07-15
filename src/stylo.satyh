@@ -56,14 +56,12 @@ module Stylo : sig
   val distance: point -> point -> length
   val line-to-by: point -> length -> stylo-pre-path -> stylo-pre-path
   val line-for-by: point -> length -> stylo-pre-path -> stylo-pre-path
-  val arc-around: point -> angle -> stylo-pre-path -> stylo-pre-path
-  val arc-around-in-radians: point -> float -> stylo-pre-path -> stylo-pre-path
-  val arc-around-in-degrees: point -> float -> stylo-pre-path -> stylo-pre-path
+
+  val arc-with-around: point -> angle -> stylo-pre-path -> stylo-pre-path
+  val arc-to-around: point -> point -> stylo-pre-path -> stylo-pre-path
   val arc-to-through: point -> point -> stylo-pre-path -> stylo-pre-path
   val arc-aside: length -> angle -> stylo-pre-path -> stylo-pre-path
-  val arc-aside-in-radians: length -> float -> stylo-pre-path -> stylo-pre-path
-  val arc-aside-in-degrees: length -> float -> stylo-pre-path -> stylo-pre-path
-  val arc-to-for: point -> point -> stylo-pre-path -> stylo-pre-path
+  %val arc-to-for: point -> point -> stylo-pre-path -> stylo-pre-path
 
   type footage
   direct \stylo: [length * length * length; footage list] inline-cmd
@@ -84,6 +82,7 @@ end = struct
   let internal-close-with-bezier = close-with-bezier
   let internal-stroke = stroke
 
+  % TODO: refactor path repres
   type path-element = LineTo of point | BezierTo of point * point * point
   type path-closing = LineToStart | BezierToStart of point * point
 
@@ -116,8 +115,14 @@ end = struct
   let (*'.) (ax, ay) b = (ax *' b, ay *' b)
   let (/'.) (ax, ay) b = (ax /' (b |> Length.of-cm) |> Length.of-cm, ay /' (b |> Length.of-cm) |> Length.of-cm)
 
-  let sign i = if i == 0 then 0 else i / Int.abs i
-  let signf f = if Float.equal f 0.0 then 0.0 else f /. Float.abs f
+  type polarity = Negative | Zero | Positive
+
+  let sign-of-int i = if i == 0 then 0 else i / Int.abs i
+  let sign-of-float f = if Float.is-zero f then 0.0 else f /. Float.abs f
+  let polarity-of-float f = open Float in
+    if is-zero f then Zero
+    else if f < 0.0 then Negative
+    else Positive
 
   let-rec range i = open Int in
     let-rec range-rec j l =
@@ -144,21 +149,24 @@ end = struct
   let distance v0 v1 = segment (v0, v1) |> length
   let normalize v = v /'. (length v /' 1cm) |> point-length-to-float
 
+  let is-zero-distance-between p1 p2 = open Float in
+    (distance p1 p2 /' 1cm) < 0.0000000000000001
+
   let dot-product (v0x, v0y) (v1x, v1y) = (v0x *. v1x) +. (v0y *. v1y)
   let cross-product (v0x, v0y) (v1x, v1y) = (v0x *. v1y) -. (v0y *. v1x)
-  let dot-product-segments s0 s1 =
+  let dot-product-lines s0 s1 =
     let n0 = segment s0 |> point-length-to-float in
     let n1 = segment s1 |> point-length-to-float in
     dot-product n0 n1
-  let cross-product-segments s0 s1 =
+  let cross-product-lines s0 s1 =
     let n0 = segment s0 |> point-length-to-float in
     let n1 = segment s1 |> point-length-to-float in
     cross-product n0 n1
-  let dot-product-normalized-segments s0 s1 =
+  let dot-product-normalized-lines-of s0 s1 =
     let n0 = segment s0 |> normalize in
     let n1 = segment s1 |> normalize in
     dot-product n0 n1
-  let cross-product-normalized-segments s0 s1 =
+  let cross-product-normalized-lines-of s0 s1 =
     let n0 = segment s0 |> normalize in
     let n1 = segment s1 |> normalize in
     cross-product n0 n1
@@ -251,16 +259,14 @@ end = struct
     | Some _ -> true
 
 
-  let current-point stylo-pre-path =
-    let (pre, start, elements) = stylo-pre-path in
-    match List.uncons elements with
-    | None -> start
-    | Some (first, _) -> (match first with
+  let current-point (pre, start, elements) =
+    match elements with
+    | [] -> start
+    | first :: _ -> (match first with
       | LineTo p -> p
       | BezierTo (_, _, p) -> p)
 
-  let current-tangent stylo-pre-path =
-    let (pre, start, elements) = stylo-pre-path in
+  let current-tangent (pre, start, elements) =
     match elements with
     | [] -> (match pre with
       | None -> (start, start)
@@ -289,15 +295,15 @@ end = struct
     let t = l /' total-length in
     split-line-at t (s, e)
 
-  let length-of-bezier-segments (s, (cp1, cp2, e)) =
+  let length-of-bezier-lines (s, (cp1, cp2, e)) =
     let l1 = segment (s, cp1) |> length in
     let l2 = segment (cp1, cp2) |> length in
     let l3 = segment (cp2, e) |> length in
     l1 +' l2 +' l3
 
   let opposed-control-points (s, (cp1, cp2, e)) =
-    let s1 = signf (cross-product-segments (s, e) (s, cp1)) in
-    let s2 = signf (cross-product-segments (e, s) (e, cp2)) in
+    let s1 = sign-of-float (cross-product-lines (s, e) (s, cp1)) in
+    let s2 = sign-of-float (cross-product-lines (e, s) (e, cp2)) in
     Float.equal s1 s2
 
   let split-bezier-at-in-scale t (s, (cp1, cp2, e)) =
@@ -505,9 +511,9 @@ end = struct
     then if b1 then true else false
     else if b1 then false else true
 
-  let arc-around-in-radians c t p =
+  let arc-with-around-in-radians c t p =
     let half-pi = Float.pi *. 0.5000000000000001 in
-    let-rec arc-around-in-radians-rec c t p d =
+    let-rec arc-with-around-in-radians-rec c t p d =
       let s = current-point p in
       let (sx, sy) = s in
       let (cx, cy) = c in
@@ -515,7 +521,7 @@ end = struct
       let id x = x in
       let p =
         if d <> 0
-        then arc-around-in-radians-rec c (half-pi *. (float (sign d))) p (d - (sign d))
+        then arc-with-around-in-radians-rec c (half-pi *. (float (sign-of-int d))) p (d - (sign-of-int d))
         else p in
       let radius = distance s c in
       let control-point-length t = (4.0 /. 3.0) *. tan (t /. 4.0) in
@@ -533,14 +539,32 @@ end = struct
     open Float in
     let d = t /. half-pi |> Float.floor |> Float.to-int in
     let t = if d <> 0 then t -. (half-pi *. (float d)) else t in
-    arc-around-in-radians-rec c t p d
+    arc-with-around-in-radians-rec c t p d
 
-  let arc-around-in-degrees c t p =
-    arc-around-in-radians c (degrees-to-radians t) p
+  let arc-with-around-in-degrees c t p =
+    arc-with-around-in-radians c (degrees-to-radians t) p
 
-  let arc-around c t = match t with
-  | Radians t -> arc-around-in-radians c t
-  | Degrees t -> arc-around-in-degrees c t
+  let arc-with-around c t = match t with
+  | Radians t -> arc-with-around-in-radians c t
+  | Degrees t -> arc-with-around-in-degrees c t
+
+  let radians-ccw-of l1 l2 =
+    let d = dot-product-normalized-lines-of l1 l2 in
+    let c = cross-product-normalized-lines-of l1 l2 in
+    let l = segment l1 |> length |> Length.to-float in
+    let h = c /. l in
+    Float.atan2 h d
+
+  let arc-to-around c e p =
+    let s = current-point p in
+    let t =
+      if is-zero-distance-between s e then Degrees 360.0 else
+      let l1 = (s, c) in
+      let l2 = (e, c) in
+      Radians (radians-ccw-of l1 l2)
+    in
+    arc-with-around c t p
+
 
   let arc-to-through n i p =
     open Float in
@@ -561,12 +585,12 @@ end = struct
       let e = bb *. (cc +. aa -. bb) in
       let f = cc *. (aa +. bb -. cc) in
       let o = ((va *'. d) +'' (vb *'. e) +'' (vc *'. f)) /'. (d +. e +. f) in
-      let t = dot-product-normalized-segments (s, o) (n, o) |> acos in
-      let i-is-left = cross-product-normalized-segments (n, s) (i, s) > 0.0 in
-      let o-is-left = cross-product-normalized-segments (n, s) (o, s) > 0.0 in
+      let t = dot-product-normalized-lines-of (s, o) (n, o) |> acos in
+      let i-is-left = cross-product-normalized-lines-of (n, s) (i, s) > 0.0 in
+      let o-is-left = cross-product-normalized-lines-of (n, s) (o, s) > 0.0 in
       let t = if bool-equal i-is-left o-is-left then Float.pi *. 2.0 -. t else t in
       let t = if i-is-left then t |> Float.neg else t in
-      arc-around-in-radians o t p
+      arc-with-around-in-radians o t p
 
   % draws an arc turn-aroundingly, with radius `r`, with angle `t`
   let arc-aside-in-radians r t p =
@@ -574,7 +598,7 @@ end = struct
     let n = segment (t1, t0) |> normalize |> point-float-to-length in
     let a = rotate-point (Float.pi *. 0.5) (n *'. (r /' 1cm)) in
     let c = shift-point t1 a in
-    arc-around-in-radians c t p
+    arc-with-around-in-radians c t p
 
   let arc-aside-in-degrees c t p =
     arc-aside-in-radians c (degrees-to-radians t) p
@@ -583,7 +607,7 @@ end = struct
   | Radians t -> arc-aside-in-radians c t
   | Degrees t -> arc-aside-in-degrees c t
 
-  let intersection-point-of-segments s0 s1 =
+  let intersection-point-of s0 s1 =
     open Float in
     let (s, sb) = s0 in
     let (e, eb) = s1 in
@@ -596,63 +620,48 @@ end = struct
     else
       let el = cross-product v vs /. cross-product vs ve in
       Some (e +'' ((ve |> point-float-to-length) *'. el))
-  let angle-of-segments s0 s1 =
-    dot-product-normalized-segments s0 s1 |> acos
 
-  let from-option d opt =
-    match opt with None -> d | Some(v) -> v
+  let is-same-polarity (s, sb) (e, eb) = open Float in
+    let d = dot-product-normalized-lines-of (sb, s) (e, s) in
+    0.0 < d
+  let is-endpoints-aligned-orthogonally (s, sb) (e, eb) = open Float in
+    let d = dot-product-normalized-lines-of (sb, s) (e, s) in
+    is-zero d
+  let is-on-same-line (s, sb) (e, eb) = open Float in
+    let de = dot-product-normalized-lines-of (sb, s) (e, s) in
+    let deb = dot-product-normalized-lines-of (sb, s) (eb, s) in
+    if abs de == 1.0 && abs deb == 1.0 then true else false
 
-  let arc-to-for t u p =
-    open Float in
-    let (s, sb) = current-tangent p in
-    let (e, eb) = (t, u) in
-    if 0.0000000000000001 > (distance s e /' 1cm) then p else
-    let i = intersection-point-of-segments (s, sb) (e, eb) in
-    match i with
-    | None ->
-      let d = dot-product-normalized-segments (s, sb) (e, s) in
-      if Float.equal d (0.0 -. 1.0) then p |> line-to e else
-      let (p, s, e) =
-        if d == 0.0
-        then (p, s, e)
-        else if d > 0.0
-        then
-          let x = intersection-point-of-segments (s, sb) (e, rotate-point-around e (Float.pi *. 0.5) eb) |> from-option s in
-          (p |> line-to x, x, e)
-        else
-          let x = intersection-point-of-segments (e, eb) (s, rotate-point-around s (Float.pi *. 0.5) sb) |> from-option e in
-          (p, s, x) in
-      let c = centerpoint (s, e) in
-      let r = distance s c in
-      let n = segment (s, sb) |> normalize |> point-float-to-length in
-      let k = c +'' (n *'. (r /' 1cm)) in
-      p |> arc-to-through e k
-    | Some i ->
-      let ds = dot-product-segments (sb +'' (segment (s, sb) |> normalize |> point-float-to-length), sb) (i, s) in
-      let de = dot-product-segments (eb +'' (segment (e, eb) |> normalize |> point-float-to-length), eb) (i, e) in
-      let cse = cross-product-normalized-segments (s, sb) (e, eb) in
-      let (p, s, e) =
-        if ds == de
-        then (p, s, e)
-        else if ds > de
-        then
-          let t = angle-of-segments (s, i) (e, i) in
-          let t = if cse > 0.0 then t |> Float.neg else t in
-          let x = e |> rotate-point-around i t in
-          (p |> line-to x, x, e)
-        else
-          let t = angle-of-segments (s, i) (e, i) in
-          let t = if cse < 0.0 then Float.pi -. t |> Float.neg else t in
-          let x = s |> rotate-point-around i t in
-          (p, s, x) in
-      let c = centerpoint (s, e) in
-      let j = from-option c (intersection-point-of-segments (s, (rotate-point-around s (Float.pi *. 0.5) sb)) (e, (rotate-point-around e (Float.pi *. 0.5) eb))) in
-      let h = segment (j, i) |> normalize |> point-float-to-length in
-      let r = distance j s in
-      let d = dot-product-segments (j, i) (s, sb) in
-      let r = if d < 0.0 then Length.neg r else r in
-      let k = j +'' h *'. (r /' 1cm) in
-      p |> arc-to-through e k
+
+  % let arc-to-for f t p =
+  %   open Float in
+  %   let ts = current-tangent p in
+  %   let te = (t, f) in
+  %   let (s, sb) = ts in
+  %   let (e, eb) = te in
+  %   if is-zero-distance-between s e then p else
+  %   let desired-endpoints-of-arc =
+  %     match intersection-point-of ts te with
+  %     | None -> % when parallel
+  %       if is-on-same-line ts te then p |> line-to e else
+  %       if ! is-same-polarity ts te then p |> line-to e else
+  %       if ! is-endpoints-aligned-orthogonally ts te then p |> line-to e else
+  %     | Some i ->
+  %       let is = (s, i) in
+  %       let ie = (e, i) in
+  %       let longer = max is ie in
+  %       let shorter = min is ie in
+  %         match polarity-of-float d with
+  %         | Zero -> (p, s, e)
+  %         | Negative ->
+  %           let x = intersection-point-of (s, sb) (e, rotate-point-around e (Float.pi *. 0.5) eb) |> Option.unwrap-or s in
+  %           (p |> line-to x, x, e)
+  %         | Positive ->
+  %           let x = intersection-point-of (e, eb) (s, rotate-point-around s (Float.pi *. 0.5) sb) |> Option.unwrap-or e in
+  %           (p, s, x)
+  %   in
+  %   let (p, s, e) = desired-endpoints-of-arc in
+  %   p |> arc-to-around 
 
   let trace t s e p =
     t s e p
