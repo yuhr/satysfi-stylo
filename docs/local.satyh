@@ -4,6 +4,7 @@
 @require: vdecoset
 @require: hdecoset
 @require: base/float
+@require: base/string
 
 let kern len = inline-skip (0pt -' len)
 
@@ -13,6 +14,8 @@ let-block ctx +diagram it =
 let-inline \show-length l =
   let f = (Float.round ((l /' 1cm) *. 100.0)) /. 100.0 in
   embed-string (show-float f ^ `cm`)
+
+let-inline \show-bool b = embed-string (String.of-bool b)
 
 let no-break ib =
   inline-frame-outer (0pt, 0pt, 0pt, 0pt) (fun _ _ _ _ -> []) ib
@@ -33,18 +36,14 @@ type type-syntax =
   | TypeName        of inline-text
   | TypeConstructor of inline-text * (type-syntax list)
   | FuncType        of type-syntax * type-syntax
-  | TupleType       of type-syntax * type-syntax
+  | TupleType       of type-syntax * (type-syntax list)
 
 
 let ( --> ) ty1 ty2 =
   FuncType(ty1, ty2)
 %  ${\paren{#m1 \to #m2}}
 
-let ( *** ) ty1 ty2 =
-  TupleType(ty1, ty2)
-%  ${\paren{#m1 \times #m2}}
-
-let ( *** ) ty1 ty2 =
+let tTUPLE ty1 ty2 =
   TupleType(ty1, ty2)
 %  ${\paren{#m1 \times #m2}}
 
@@ -88,6 +87,7 @@ let tMCSTY = type-name {math-char-style}
 let tPAREN = type-name {paren}
 let tMCCLS = type-name {math-char-class}
 let tPOS = type-name {position}
+let tA = type-name {angle}
 let tLIST ty = type-constructor {list} [ty]
 %  let token = type-name {list} in
 %    ${\paren{#m}\math-skip!(4pt)#token}
@@ -121,13 +121,9 @@ let-rec math-of-type ty =
 
   | TupleType(ty1, ty2) ->
     let m1 = math-of-type ty1 in
-    let m2 = math-of-type ty2 in
-    let m1 =
-      match ty1 with
-      | TupleType(_, _) -> ${\paren{#m1}}
-      | _               -> m1
-    in
-    ${#m1\times#m2}
+    let mns = List.map math-of-type ty2 in
+    let m = List.fold-left (fun m mn -> ${#m \times #mn}) m1 mns in
+    ${\paren{#m}}
 
 
 let-block ctx +centered-image wid srcpath =
@@ -176,23 +172,6 @@ let-block ctx +command name ty inner =
 
 
 let-mutable flag <- true
-
-
-let-block ctx +commands namelst ty inner =
-  let ctx-name = name-context ctx in
-  let ib-comma = read-inline ctx {,\ } in
-  let () = flag <- true in
-  let ib-name =
-    namelst |> List.fold-left (fun acc name -> (
-      let ib-name = read-inline ctx-name (embed-string name) in
-      if !flag then
-        let () = flag <- false in
-        acc ++ ib-name
-      else
-        acc ++ ib-comma ++ ib-name
-    )) inline-nil
-  in
-    command-scheme ctx ib-name ty inner
 
 
 let-block ctx +type ty inner =
