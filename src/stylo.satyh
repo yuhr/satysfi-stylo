@@ -8,6 +8,7 @@
 @require: base/string
 @require: base/option-ext
 @require: base/int
+@require: base/fn
 
 type bezier = point * (point * point * point)
 type position = Scale of float | Length of length
@@ -38,7 +39,10 @@ module Stylo : sig
   val close-with-bezier: point * point -> stylo-pre-path -> stylo-path
   val is-closed: stylo-path -> bool
 
+  type footage
+
   %val solid-with-arrowhead: stylo-pre-path -> stylo-path
+  val translate-footage: point -> footage -> footage
   val shift-point: point -> point -> point
   val unshift-point: point -> point -> point
   val rotate-point: float -> point -> point
@@ -63,7 +67,6 @@ module Stylo : sig
   val arc-aside: length -> angle -> stylo-pre-path -> stylo-pre-path
   %val arc-to-for: point -> point -> stylo-pre-path -> stylo-pre-path
 
-  type footage
   direct \stylo: [length * length * length; footage list] inline-cmd
 
   val solid: stylo-path -> footage
@@ -671,11 +674,17 @@ end = struct
     let o = (0cm -' (tw *' 0.5), 0cm -' (th *' 0.5)) in
     draw-text (shift-point p o) ib
 
+  let translate-footage p f =
+    f |> Fn.compose (shift-graphics p)
+
   let-inline ctx \stylo (width, height, depth) fs =
-    inline-graphics width height depth (fun (x, y) ->
-      fs |> List.map (fun f -> f ctx) |> List.map (shift-graphics (x, y))
-    )
+    inline-graphics width height depth (fun (x, y) -> (
+      let offset = translate-footage (x, y) in
+      fs |> List.map offset |> List.apply ctx
+    ))
+
   let solid p = fun ctx -> stroke 0.75pt Color.black p
   let label-at p it = fun ctx -> read-inline ctx it |> draw-text-center-at p
+
 
 end

@@ -10,28 +10,17 @@ document (|
   +p {
     Stylo is a satysfactory graphics library which focuses on drawing geometrical diagrams in its entirety. Rendered diagrams are meant to be comparable to \Xy;-pic package of \LaTeX;, but the code looks readable and descriptive.
   }
-  +demo () (
-    open Stylo in
-    let (s, t) = ((1cm, 0cm), (-1cm, 0cm)) in
-    let (a, b, c, d) = ((1cm, 1cm), (0cm, 1cm), (-0.5cm, 1cm), (-1cm, 1cm)) in
-    let arc-with = arc-with-around b in
-    [
-      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
-      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
-      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
-      start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close |> solid;
-    ]
-  );
   +diagram {
     \stylo((0cm, 2cm, 2cm))(open Stylo in
-      let p = start (0cm, 1cm) |> arc-with-around (0cm, 0cm) (Degrees 360.0) |> close in
-      let (p1, p2) = split-at (Scale 0.5) p in
-      let drawn = p1 in
+      let (s, t) = ((1cm, 0cm), (-1cm, 0cm)) in
+      let (a, b, c, d) = ((1cm, 1cm), (0cm, 1cm), (-0.5cm, 1cm), (-1cm, 1cm)) in
+      let arc-with = arc-with-around b in
       [
-        drawn |> solid;
-        {\show-length(length-of-path drawn);} |> label-at (0cm, 0cm);
-        {closed: \show-bool(is-closed drawn);} |> label-at (0cm, -1.5cm);
-      ]
+        start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close;
+        start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close;
+        start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close;
+        start s |> line-to a |> arc-with (Degrees (Float.neg 90.0)) |> line-to t |> close;
+      ] |> List.map solid |> List.map (translate-footage (-2cm, 0cm))
     );
   }
 
@@ -54,6 +43,14 @@ document (|
         }
         +p {
           A point is one of the most primitive object in the world of graphics.
+        }
+      >
+      +subsection {Lines} <
+        +diagram {
+          TBW
+        }
+        +p {
+          A line consists of two points.
         }
       >
       +subsection {Paths} <
@@ -101,7 +98,7 @@ document (|
 
     +section {Decoratives} <
       +p {
-        In this section, style-related datatypes are shown in series.
+        In this section, style-related concepts and predefined decoratives are shown in series.
       }
       +listing {
         * TBW
@@ -130,6 +127,11 @@ document (|
           An arrow is constructed from a wire and one or two pin(s). TBW
         }
       >
+      +subsection {Contexts} <
+        +p {
+          
+        }
+      >
     >
 
     +section {Textuals} <
@@ -141,6 +143,12 @@ document (|
           TBW
         }
       >
+    >
+
+    +section {Footages} <
+      +p {
+        A footage is a ready-to-render object.
+      }
     >
   >
 
@@ -170,7 +178,7 @@ document (|
         * `at`: A position on the path, at which a cut or join is performed.
       }
       +p {
-        For example, `arc-with-around` firstly takes a centerpoint of the arc, secondly takes , and lastly takes a pre-path or a path.
+        For example, `arc-by-around` firstly takes a centerpoint of the arc, secondly takes an angle to draw, and lastly takes a pre-path.
       }
     >
 
