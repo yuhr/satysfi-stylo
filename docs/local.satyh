@@ -164,8 +164,8 @@ let-block ctx +demo c fs =
   let g = read-inline ctx {\stylo((2cm, 2cm, 0cm))(fs);} in
   block-frame-breakable (ctx |> set-paragraph-margin gap-command gap-paragraph)
     (2cm, 2cm, 0pt, 0pt) VDecoSet.empty (fun ctx ->
-        form-paragraph (ctx |> set-paragraph-margin 0pt 0pt) g
-      )
+      form-paragraph (ctx |> set-paragraph-margin 0pt 0pt) g
+    )
 
 
 let name-context ctx =
