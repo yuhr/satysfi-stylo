@@ -1,0 +1,119 @@
+@require: base/length
+@require: base/float
+@require: base/int
+
+% utilities
+let half-length l = l /' 2.0cm |> Length.of-cm
+
+let radians-to-degrees t = t /. Float.pi *. 180.0
+let degrees-to-radians t = t *. Float.pi /. 180.0
+
+let (+'') (ax, ay) (bx, by) = (ax +' bx, ay +' by)
+let (-'') (ax, ay) (bx, by) = (ax -' bx, ay -' by)
+let (*'.) (ax, ay) b = (ax *' b, ay *' b)
+let (/'.) (ax, ay) b = (ax /' (b |> Length.of-cm) |> Length.of-cm, ay /' (b |> Length.of-cm) |> Length.of-cm)
+
+type polarity = Negative | Zero | Positive
+
+let sign-of-int i = if i == 0 then 0 else i / Int.abs i
+let sign-of-float f = if Float.is-zero f then 0.0 else f /. Float.abs f
+let polarity-of-float f = open Float in
+  if is-zero f then Zero
+  else if f < 0.0 then Negative
+  else Positive
+
+let-rec range i = open Int in
+  let-rec range-rec j l =
+    if i <= j
+    then l
+    else range-rec (j + 1) (j :: l)
+  in range-rec 0 []
+
+let point-length-to-float (vx, vy) =
+  (vx /' 1.0cm, vy /' 1.0cm)
+let point-float-to-length (vx, vy) =
+  (vx |> Length.of-cm, vy |> Length.of-cm)
+
+let line-segment ((px, py), (qx, qy)) =
+  (px -' qx, py -' qy)
+let length seg =
+  let (x, y) = seg |> point-length-to-float in
+  ((x *. x) +. (y *. y)) |> Float.sqrt |> Length.of-cm |> Length.abs
+let lerp t (s, e) =
+  let (sx, sy) = s in
+  let (dx, dy) = line-segment (e, s) *'. t in
+  (sx +' dx, sy +' dy)
+let centerpoint (s, e) = lerp 0.5 (s, e)
+let distance v0 v1 = line-segment (v0, v1) |> length
+let normalize v = v /'. (length v /' 1cm) |> point-length-to-float
+
+let is-almost-zero l = open Float in
+  abs (l /' 1cm) < 0.0001
+let is-almost l1 l2 = open Float in
+  l1 -' l2 |> is-almost-zero
+let is-almost-zero-distance-to p1 p2 = open Float in
+  distance p1 p2 |> is-almost-zero
+
+let dot-product (v0x, v0y) (v1x, v1y) = (v0x *. v1x) +. (v0y *. v1y)
+let cross-product (v0x, v0y) (v1x, v1y) = (v0x *. v1y) -. (v0y *. v1x)
+let dot-product-lines s0 s1 =
+  let n0 = line-segment s0 |> point-length-to-float in
+  let n1 = line-segment s1 |> point-length-to-float in
+  dot-product n0 n1
+let cross-product-lines s0 s1 =
+  let n0 = line-segment s0 |> point-length-to-float in
+  let n1 = line-segment s1 |> point-length-to-float in
+  cross-product n0 n1
+let dot-product-normalized-lines-of s0 s1 =
+  let n0 = line-segment s0 |> normalize in
+  let n1 = line-segment s1 |> normalize in
+  dot-product n0 n1
+let cross-product-normalized-lines-of s0 s1 =
+  let n0 = line-segment s0 |> normalize in
+  let n1 = line-segment s1 |> normalize in
+  cross-product n0 n1
+
+let shift-point (ox, oy) (x, y) = (x +' ox, y +' oy)
+let unshift-point (ox, oy) (x, y) = (x -' ox, y -' oy)
+
+let rotate-point t (x, y) =
+  ((x *' cos t) -' (y *' sin t),
+  (x *' sin t) +' (y *' cos t))
+let rotate-point-around (cx, cy) t (x, y) =
+  (x, y)
+    |> shift-point (0cm -' cx, 0cm -' cy)
+    |> rotate-point t
+    |> shift-point (cx, cy)
+
+let scale-point s (x, y) = (x *' s, y *' s)
+let scale-point-around (cx, cy) s (x, y) =
+  (x, y)
+    |> shift-point (0cm -' cx, 0cm -' cy)
+    |> scale-point s
+    |> shift-point (cx, cy)
+
+
+let intersection-point-of s0 s1 =
+  open Float in
+  let (s, sb) = s0 in
+  let (e, eb) = s1 in
+  let vs = s -'' sb |> point-length-to-float in
+  let ve = e -'' eb |> point-length-to-float in
+  let v = e -'' s |> point-length-to-float in
+  let c = cross-product vs ve in
+  if c == 0.0
+  then None
+  else
+    let el = cross-product v vs /. cross-product vs ve in
+    Some (e +'' ((ve |> point-float-to-length) *'. el))
+
+let is-same-azimuth (s, sb) (e, eb) = open Float in
+  let d = dot-product-normalized-lines-of (sb, s) (e, s) in
+  0.0 < d
+let is-endpoints-aligned-orthogonally (s, sb) (e, eb) = open Float in
+  let d = dot-product-normalized-lines-of (sb, s) (e, s) in
+  is-zero d
+let is-on-same-line (s, sb) (e, eb) = open Float in
+  let de = dot-product-normalized-lines-of (sb, s) (e, s) in
+  let deb = dot-product-normalized-lines-of (sb, s) (eb, s) in
+  if abs de == 1.0 && abs deb == 1.0 then true else false

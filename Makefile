@@ -1,8 +1,8 @@
 .PHONY: docs watch
 
-docs: ./docs/stylo.pdf
+docs: docs/stylo.pdf
 
-./docs/stylo.pdf: ./docs/stylo.saty ./src/stylo.satyh ./docs/local.satyh
+docs/stylo.pdf: docs/stylo.saty docs/local.satyh src/*
 	cd docs && satysfi stylo.saty
 
 watch:

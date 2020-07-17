@@ -1,0 +1,26 @@
+@require: gr
+@require: base/fn
+
+@import: utils
+
+module Footage : sig
+
+  type footage
+
+  val translate: point -> footage -> footage
+
+  val print: context -> footage -> graphics
+
+  val footage: (context -> graphics) -> footage
+
+end = struct
+
+  type footage = context -> graphics
+
+  let translate p f = f |> Fn.compose (shift-graphics p)
+
+  let print ctx f = f ctx
+
+  let footage f = f
+
+end

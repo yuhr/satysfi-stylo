@@ -1,0 +1,487 @@
+@require: gr
+@require: color
+@require: base/float
+@require: base/length
+@require: base/list-ext
+@require: base/debug
+@require: base/string
+@require: base/option-ext
+@require: base/int
+@require: base/fn
+
+@import: utils
+@import: footage
+
+
+type position = Scale of float | Length of length
+type angle = Radians of float | Degrees of float
+
+
+module Path : sig
+
+  type segment
+  type stylo-path
+
+  val first-segment-of: stylo-path -> segment
+  val last-segment-of: stylo-path -> segment
+  val segments-of: stylo-path -> segment list
+  val endpoint-of: segment -> point
+  val first-point-of: stylo-path -> point
+  val last-point-of: stylo-path -> point
+
+  val start-from: point -> stylo-path
+  val start-with-tangent: point -> point -> stylo-path
+  val finish: stylo-path -> stylo-path
+  %val restart: stylo-path -> stylo-path
+  %val restart-at: position -> stylo-path -> stylo-path
+
+  val line-to: point -> stylo-path -> stylo-path
+  val line-to-by: point -> length -> stylo-path -> stylo-path
+  val line-for-by: point -> length -> stylo-path -> stylo-path
+
+  val bezier-to: point * point * point -> stylo-path -> stylo-path
+
+  val arc-by-around: point -> angle -> stylo-path -> stylo-path
+  val arc-to-through: point -> point -> stylo-path -> stylo-path
+  val arc-aside: length -> angle -> stylo-path -> stylo-path
+  %val arc-to-with-tangents: point -> point -> stylo-path -> stylo-path
+
+  val split-at: position -> stylo-path -> stylo-path * stylo-path
+  val split-into-at: position -> float -> stylo-path -> stylo-path list
+  val split-incr-at: position -> position -> stylo-path -> stylo-path list
+
+  val is-closed: stylo-path -> bool
+
+  val length-of: stylo-path -> length
+
+
+  val solid: stylo-path -> Footage.footage
+
+end = struct
+
+  % backup indentifiers for internals
+  let internal-start-path = start-path
+  let internal-line-to = line-to
+  let internal-bezier-to = bezier-to
+  let internal-terminate-path = terminate-path
+  let internal-close-with-line = close-with-line
+  let internal-close-with-bezier = close-with-bezier
+  let internal-stroke = stroke
+
+
+  type segment = LineTo of point | BezierTo of point * point * point
+
+  % prefixed because of #81 (https://github.com/gfngfn/SATySFi/issues/81)
+  type stylo-path =
+    | Open of segment * segment list
+    | Closed of segment * segment list
+
+
+  let first-segment-of path = match path with
+    | Open (first, _) -> first
+    | Closed (first, _) -> first
+
+  let last-segment-of path = match path with
+    | Open (first, rest) -> (match rest with
+      | [] -> first
+      | head :: _ -> head)
+    | Closed (first, _) -> first
+
+  let segments-of path = match path with
+    | Open (first, rest) -> rest
+    | Closed (first, rest) -> first :: rest
+
+  let endpoint-of segment = match segment with
+    | LineTo e -> e
+    | BezierTo (_, _, e) -> e
+
+  let first-point-of path = endpoint-of <| first-segment-of path
+  let last-point-of path = endpoint-of <| last-segment-of path
+
+
+  let start-from s = Open (BezierTo (s, s, s), [])
+  let start-with-tangent t s = Open (BezierTo (t, s, s), [])
+
+  let open-segments-of path = match path with
+    | Open (first, rest) -> (first, rest)
+    | Closed (first, rest) -> (match first with
+      | LineTo p -> (first, LineTo p :: rest)
+      | BezierTo p -> (first, BezierTo p :: rest))
+
+  let line-to e path =
+    let (first, rest) = open-segments-of path in
+    Open (first, LineTo e :: rest)
+
+  let bezier-to cpe path =
+    let (first, rest) = open-segments-of path in
+    Open (first, BezierTo cpe :: rest)
+
+  let finish path = match path with
+    | Closed (first, rest) -> Closed (first, rest)
+    | Open (first, rest) -> (match rest with
+      | [] -> Closed (LineTo (endpoint-of first), [])
+      | head :: tail ->
+        let f = first-point-of path in
+        let l = last-point-of path in
+        if l |> is-almost-zero-distance-to f
+        then Closed (head, tail)
+        else Open (first, head :: tail)
+    )
+
+  let is-closed path = match path with
+    | Closed _ -> true
+    | Open _ -> false
+
+  let current-tangent-of path =
+    let first = first-segment-of path in
+    let (head :: tail) = segments-of path in
+    match head with
+    | LineTo e -> (match tail with
+      | [] -> (e, endpoint-of first)
+      | head :: _ -> (match head with
+        | LineTo ep -> (e, ep)
+        | BezierTo (_, _, ep) -> (e, ep)))
+    | BezierTo (_, cp2, e) -> (e, cp2)
+
+
+  let length-of-line (s, e) = distance s e
+
+  let split-line-at t (s, e) =
+    let x = lerp t (s, e) in
+    let l1 = (s, x) in
+    let l2 = (x, e) in
+    (l1, l2)
+
+  let split-line-at-length desired-length (s, e) =
+    let total-length = line-segment (s, e) |> length in
+    let t = desired-length /' total-length in
+    split-line-at t (s, e)
+
+  let length-of-bezier-lines (s, (cp1, cp2, e)) =
+    let l1 = line-segment (s, cp1) |> length in
+    let l2 = line-segment (cp1, cp2) |> length in
+    let l3 = line-segment (cp2, e) |> length in
+    l1 +' l2 +' l3
+
+  let opposed-control-points (s, (cp1, cp2, e)) =
+    let s1 = sign-of-float (cross-product-lines (s, e) (s, cp1)) in
+    let s2 = sign-of-float (cross-product-lines (e, s) (e, cp2)) in
+    Float.equal s1 s2
+
+  let split-bezier-at-in-scale t (s, (cp1, cp2, e)) =
+    let split = lerp t in
+    let l1 = (s, cp1) in
+    let l2 = (cp1, cp2) in
+    let l3 = (cp2, e) in
+    let s1 = split l1 in
+    let s2 = split l2 in
+    let s3 = split l3 in
+    let l12 = (s1, s2) in
+    let l23 = (s2, s3) in
+    let s12 = split l12 in
+    let s23 = split l23 in
+    let lt = (s12, s23) in
+    let st = split lt in
+    let b1 = (s, (s1, s12, st)) in
+    let b2 = (st, (s23, s3, e)) in
+    (b1, b2)
+
+  let-rec length-of-bezier b = let (s, (cp1, cp2, e)) = b in
+    let (b1, b2) = split-bezier-at-in-scale 0.5 b in
+    if opposed-control-points b
+    then length-of-bezier b1 +' length-of-bezier b2
+    else
+      let (bc, _) = b2 in
+      let lc = centerpoint (s, e) in
+      if lc |> is-almost-zero-distance-to bc
+      then length-of-line (s, e)
+      else length-of-bezier b1 +' length-of-bezier b2
+
+  let length-of-segment-from s segment =
+    match segment with
+    | LineTo e -> length-of-line (s, e)
+    | BezierTo b -> length-of-bezier (s, b)
+
+  let (^) f d = f |> Float.pow (Float.of-int d)
+
+  let split-bezier-at-in-length desired-length b = let (s, (cp1, cp2, e)) = b in
+    let-rec bisect t step =
+      let (former, latter) = split-bezier-at-in-scale t b in
+      let approx = length-of-bezier former in
+      if approx |> is-almost desired-length
+      then (former, latter)
+      else if desired-length <' approx
+      then bisect (t -. (0.5 ^ step + 2)) (step + 1)
+      else bisect (t +. (0.5 ^ step + 2)) (step + 1) in
+    bisect 0.5 0
+
+  let split-bezier-at p = match p with
+    | Scale p -> split-bezier-at-in-scale p
+    | Length p -> split-bezier-at-in-length p
+
+  let length-of path =
+    let f = first-point-of path in
+    let segments = segments-of path in
+    let (total-length, s) =
+      List.reverse segments
+      |> List.fold-left (fun (total-length, s) segment ->
+        (total-length +' length-of-segment-from s segment, endpoint-of segment)
+      ) (0cm, f)
+    in total-length
+
+  let mod-length l2 l1 = l1 -' l2 *' (l1 /' l2 |> Float.floor)
+  let (++) l1 l2 = List.append l1 l2
+  let split-skip-at i l = (List.take i l, List.drop (i + 1) l)
+
+  let split-at-in-length desired-length path =
+    let total-length = length-of path in
+    if total-length |> is-almost-zero then (path, path) else % FIXME
+    let desired-length =
+      if total-length <' desired-length
+      then desired-length |> mod-length total-length
+      else desired-length
+    in
+    let first = first-segment-of path in
+    let f = first-point-of path in
+    let folded =
+      segments-of path
+      |> List.reverse
+      |> List.fold-left (fun (found, accumulated-length, former, latter, s) segment -> (
+        match found with
+        | Some _ -> (found, accumulated-length, former, segment :: latter, s)
+        | None ->
+          let length-of-segment = length-of-segment-from s segment in
+          if accumulated-length +' length-of-segment <' desired-length
+          then
+            let e = endpoint-of segment in
+            (None, accumulated-length +' length-of-segment, segment :: former, [], e)
+          else
+            (Some (desired-length -' accumulated-length, segment), 0cm, former, [], s)
+      )) (None, 0cm, [], [], f)
+    in
+    let (Some found, _, former, latter, l) = folded in
+    let (local-length, segment) = found in
+    match segment with
+    | LineTo e ->
+      let line = (l, e) in
+      let splitted = split-line-at-length local-length line in
+      let (_, (x, e)) = splitted in
+      let former = Open (first, [LineTo x] ++ former) in
+      let latter = Open (LineTo x, latter ++ [LineTo e]) in
+      (former, latter)
+    | BezierTo cpe ->
+      let bezier = (l, cpe) in
+      let splitted = split-bezier-at-in-length local-length bezier in
+      let ((_, b1cpe), (b2s, b2cpe)) = splitted in
+      let former = Open (first, [BezierTo b1cpe] ++ former) in
+      let latter = Open (BezierTo b1cpe, latter ++ [BezierTo b2cpe]) in
+      (former, latter)
+
+  let split-at-in-scale at path =
+    let total-length = length-of path in
+    let l = total-length *' at in
+    split-at-in-length l path
+
+  let split-at path = match path with
+    | Scale path -> split-at-in-scale path
+    | Length path -> split-at-in-length path
+
+  let split-incr-at at incr path =
+    let total-length = length-of path in
+    let at = match at with
+    | Scale at -> total-length *' at
+    | Length at -> at in
+    let incr = match incr with
+    | Scale incr -> total-length *' incr
+    | Length incr -> incr in
+    let-rec rec l path r =
+      let remained-length = length-of path in
+      if remained-length <' l
+      then r
+      else let (subpath, path) = split-at-in-length l path in
+        rec (l +' incr) path (r ++ [subpath])
+    in rec incr path []
+
+  let split-into-at at div path =
+    let incr = 1.0 /. div in
+    split-incr-at at (Scale incr) path
+
+
+  let line-to-by t l p =
+    let s = last-point-of p in
+    let (sx, sy) = s in
+    let (tx, ty) = t in
+    let d = distance t s in
+    let r = l /' d in
+    let (tx, ty) = line-segment (t, s) in
+    let a = (sx +' (tx *' r), sy +' (ty *' r)) in
+    p |> line-to a
+
+  let line-for-by f l p =
+    let s = last-point-of p in
+    line-to-by (shift-point f s) l p
+
+  let arc-by-around-in-radians c t p =
+    let half-pi = Float.pi *. 0.5000000000000001 in
+    let-rec arc-by-around-in-radians-rec c t p d =
+      let s = last-point-of p in
+      let (sx, sy) = s in
+      let (cx, cy) = c in
+      let angle-to-c = atan2 ((sy -' cy) /' 1cm) ((sx -' cx) /' 1cm) in
+      let id x = x in
+      let p =
+        if d <> 0
+        then arc-by-around-in-radians-rec c (half-pi *. (float (sign-of-int d))) p (d - (sign-of-int d))
+        else p in
+      let radius = distance s c in
+      let control-point-length t = (4.0 /. 3.0) *. tan (t /. 4.0) in
+      let k = control-point-length t in
+      let [p0; p1; p2; p3] = [
+        (radius, 0cm);
+        (radius, radius *' k);
+        (radius *' (cos t +. k *. sin t), radius *' (sin t -. k *. cos t));
+        (radius *' cos t, radius *' sin t);
+      ]
+        |> List.map (rotate-point (half-pi *. (float d)))
+        |> List.map (shift-point (sx -' radius, sy))
+        |> List.map (rotate-point-around s angle-to-c) in
+      p |> bezier-to (p1, p2, p3) in
+    open Float in
+    let d = t /. half-pi |> Float.floor |> Float.to-int in
+    let t = if d <> 0 then t -. (half-pi *. (float d)) else t in
+    arc-by-around-in-radians-rec c t p d
+
+  let arc-by-around-in-degrees c t p =
+    arc-by-around-in-radians c (degrees-to-radians t) p
+
+  let arc-by-around c t = match t with
+  | Radians t -> arc-by-around-in-radians c t
+  | Degrees t -> arc-by-around-in-degrees c t
+
+  let radians-ccw-of l1 l2 =
+    let d = dot-product-normalized-lines-of l1 l2 in
+    let c = cross-product-normalized-lines-of l1 l2 in
+    let l = line-segment l1 |> length |> Length.to-float in
+    let h = c /. l in
+    Float.atan2 h d
+
+  let bool-equal b0 b1 =
+    if b0
+    then if b1 then true else false
+    else if b1 then false else true
+
+  let arc-to-through n i p =
+    open Float in
+    let s = last-point-of p in
+    let va = s in
+    let vb = i in
+    let vc = n in
+    let a = (distance vb vc) /' 1cm in
+    let b = (distance vc va) /' 1cm in
+    let c = (distance va vb) /' 1cm in
+    if c +. a -. b < 0.000000000000001
+    then line-to n p
+    else
+      let aa = a *. a in
+      let bb = b *. b in
+      let cc = c *. c in
+      let d = aa *. (bb +. cc -. aa) in
+      let e = bb *. (cc +. aa -. bb) in
+      let f = cc *. (aa +. bb -. cc) in
+      let o = ((va *'. d) +'' (vb *'. e) +'' (vc *'. f)) /'. (d +. e +. f) in
+      let t = dot-product-normalized-lines-of (s, o) (n, o) |> acos in
+      let i-is-left = cross-product-normalized-lines-of (n, s) (i, s) > 0.0 in
+      let o-is-left = cross-product-normalized-lines-of (n, s) (o, s) > 0.0 in
+      let t = if bool-equal i-is-left o-is-left then Float.pi *. 2.0 -. t else t in
+      let t = if i-is-left then t |> Float.neg else t in
+      arc-by-around-in-radians o t p
+
+  % draws an arc turn-aroundingly, with radius `r`, with angle `t`
+  let arc-aside-in-radians r t p =
+    let (t1, t0) = current-tangent-of p in
+    let n = line-segment (t1, t0) |> normalize |> point-float-to-length in
+    let a = rotate-point (Float.pi *. 0.5) (n *'. (r /' 1cm)) in
+    let c = shift-point t1 a in
+    arc-by-around-in-radians c t p
+
+  let arc-aside-in-degrees c t p =
+    arc-aside-in-radians c (degrees-to-radians t) p
+
+  let arc-aside c t = match t with
+  | Radians t -> arc-aside-in-radians c t
+  | Degrees t -> arc-aside-in-degrees c t
+
+
+  % let terminate-with-arrowhead p =
+  %   let s = last-point-of p in
+  %   let (tx, ty) = current-tangent p |> line-segment in
+  %   let a = atan2 (ty /' 1cm) (tx /' 1cm) in
+  %   let arrowhead-left-side =
+  %     start-path (0cm, 0cm)
+  %     |> bezier-to ((-1pt, 0pt), (-5pt, 1pt), (-6pt, 2pt))
+  %     |> terminate in
+  %   let arrowhead-right-side =
+  %     start-path (0cm, 0cm)
+  %     |> bezier-to ((-1pt, 0pt), (-5pt, -1pt), (-6pt, -2pt))
+  %     |> terminate in
+  %   unite-path arrowhead-left-side arrowhead-right-side
+  %   |> rotate-path (0cm, 0cm) a
+  %   |> shift-path s
+  %   |> unite-path (p |> terminate)
+
+
+  % let arc-to-with-tangents f t p =
+  %   open Float in
+  %   let ts = current-tangent p in
+  %   let te = (t, f) in
+  %   let (s, sb) = ts in
+  %   let (e, eb) = te in
+  %   if is-zero-distance-to s e then p else
+  %   let desired-endpoints-of-arc =
+  %     match intersection-point-of ts te with
+  %     | None -> % when parallel
+  %       if is-on-same-line ts te then p |> line-to e else
+  %       if ! is-same-azimuth ts te then p |> line-to e else
+  %       if ! is-endpoints-aligned-orthogonally ts te then p |> line-to e else
+  %     | Some i ->
+  %       let is = (s, i) in
+  %       let ie = (e, i) in
+  %       let longer = max is ie in
+  %       let shorter = min is ie in
+  %         match polarity-of-float d with
+  %         | Zero -> (p, s, e)
+  %         | Negative ->
+  %           let x = intersection-point-of (s, sb) (e, rotate-point-around e (Float.pi *. 0.5) eb) |> Option.unwrap-or s in
+  %           (p |> line-to x, x, e)
+  %         | Positive ->
+  %           let x = intersection-point-of (e, eb) (s, rotate-point-around s (Float.pi *. 0.5) sb) |> Option.unwrap-or e in
+  %           (p, s, x)
+  %   in
+  %   let (p, s, e) = desired-endpoints-of-arc in
+  %   p |> arc-to-around
+
+
+  let convert-segments-to-internal-pre-path (first, rest) =
+    let f = endpoint-of first in
+    List.reverse rest |> List.fold-left (fun pre-path segment -> (
+      match segment with
+      | LineTo e -> pre-path |> internal-line-to e
+      | BezierTo (cp1, cp2, e) -> pre-path |> internal-bezier-to cp1 cp2 e
+    )) (internal-start-path f)
+
+  let convert-path-to-internal-path path =
+    match path with
+    | Open segments ->
+      convert-segments-to-internal-pre-path segments |> internal-terminate-path
+    | Closed (first, rest) ->
+      convert-segments-to-internal-pre-path (first, rest) |> (match first with
+      | LineTo _ -> internal-close-with-line
+      | BezierTo (cp1, cp2, _) -> internal-close-with-bezier cp1 cp2)
+
+
+  let stroke l c p = internal-stroke l c (convert-path-to-internal-path p)
+
+  let solid p =
+    Footage.footage (fun ctx -> stroke 0.75pt Color.black p)
+
+end

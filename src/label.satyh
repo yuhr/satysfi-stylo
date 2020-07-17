@@ -1,0 +1,17 @@
+@import: utils
+@import: footage
+
+module Label : sig
+
+  val label-to: point -> inline-text -> Footage.footage
+
+end = struct
+
+  let draw-text-center-at p ib =
+    let (tw, th, td) = get-natural-metrics ib in
+    let o = (0cm -' (tw *' 0.5), 0cm -' (th *' 0.5)) in
+    draw-text (shift-point p o) ib
+  let label-to p it =
+    Footage.footage (fun ctx -> read-inline ctx it |> draw-text-center-at p)
+
+end
