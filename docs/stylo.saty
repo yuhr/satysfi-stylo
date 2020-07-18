@@ -15,17 +15,23 @@ document (|
   +diagram {
     \stylo((0cm, 2cm, 2cm))(
       open Path in
-      let start = start-from (0cm, 0cm) in
-      let arc-by = arc-by-around (0cm, 1cm) in
-      let circle = start |> arc-by (Degrees 360.0) |> finish in
-      let count = 5 in
-      circle
-      |> List.repeat count
-      |> List.mapi (fun i f -> f
-        |> split-at (Scale (Float.of-int (i + 1) *. 1.0 /. Float.of-int count))
-        |> Pair.fst
-        |> solid
-        |> Footage.translate (-5cm +' 2.5cm *' Float.of-int i, 0cm))
+      let s = (0cm, -1cm) in
+      let n = (0cm, 1cm) in
+      [
+        start-from s
+        |> arc-thru-to n (4cm, 0cm)
+        |> arc-thru-to s (2cm, 0cm)
+        |> arc-thru-to n (1cm, 0cm)
+        |> arc-thru-to s (0.5cm, 0cm)
+        |> arc-thru-to n (0.25cm, 0cm)
+        |> arc-thru-to s (0cm, 0cm)
+        |> arc-thru-to n (-0.25cm, 0cm)
+        |> arc-thru-to s (-0.5cm, 0cm)
+        |> arc-thru-to n (-1cm, 0cm)
+        |> arc-thru-to s (-2cm, 0cm)
+        |> arc-thru-to n (-4cm, 0cm)
+        |> solid;
+      ]
     );
   }
 
@@ -149,34 +155,9 @@ document (|
       In the world of Stylo, the noun “construct” refers to commands that takes some paths and returns some paths modifying them. There's a set of commands for drawing, measuring and decorating paths.
     }
 
-    +section {Naming convention} <
-      +p {
-        Constructs are named so that what each parameter means can be guessed, in the form of `<x>-<t0>-<t1>-...-<tn>`.
-      }
-      +listing {
-        * `<x>` means what is drawn or performed by the construct, such as `start`, `arc` and `split`.
-        * `<t0>` means what type of value the paenultima parameter takes.
-        * `<t1>` means what type of value the antepaenultima parameter takes.
-        * And so on. The ultima parameter is always a path, so it's not appeared in the name.
-      }
-      +p {
-        Note that these specifiers are appeared in reverse order. The full list of type specifiers is below.
-      }
-      +listing {
-        * `to`: A point, to which a translation is performed or a path is drawn.
-        * `upto`: A length, upto which the path is drawn.
-        * `by`: An angle, by which a rotation is performed or an arc is drawn.
-        * `around`: A point, around which a linear transformation is performed or an arc is drawn.
-        * `at`: A position on the path, at which a cut or join is performed.
-      }
-      +p {
-        For example, `arc-by-around` firstly takes a centerpoint of the arc, secondly takes an angle to draw, and lastly takes a path.
-      }
-    >
-
     +section {Constructing paths} <
       +p {
-        Paths can be constructed from scratch. Unlike \SATySFi;'s path implementation, Stylo has no concept of “pre-path”. Constructs always return complete paths closed or not. When constructing paths by hand, basically returned paths are open, so if you want to close them you need to connect the starting point and the ending point manually and pass them into `finish`.
+        Paths can be constructed from scratch. Unlike \SATySFi;'s path implementation, Stylo has no concept of “pre-path”. Constructs always return complete paths closed or not. When constructing paths by hand, basically manipulated paths are open, so if you want to close them you need to connect the starting point and the ending point manually and pass them into `finish`.
       }
       +subsection {Terminative constructs} <
         +command (`start-from`) (tPT --> tPATH) {
@@ -189,15 +170,15 @@ document (|
           Closes a path if the last point is meeting to the starting point, elsewise leaves it open.
         }
         +command (`restart`) (tPATH --> tPATH) {
-          Restarts a path, opening if closed. Yields the same result as `restart-at (Scale 1.0)`.
+          Opens a path if closed. Usually you don't need to use this construct because most other constructs implicitly reopen if closed.
         }
         +command (`restart-at`) (tPOS --> (tPATH --> tPATH)) {
-          Restarts a path from a given position. The path portion after the position is discarded. `restart-at (Scale 0.0) path` returns the same result as `start (first-point-of path)`.
+          Restarts the path from a given position. The path portion after the position is discarded.
         }
       >
       +subsection {Lines and curves} <
         +p {
-          You can draw each segment of a path using these constructs.
+          You can draw each segment of a path step by step using these constructs.
         }
         +command (`line-to`) (tPT --> (tPATH --> tPATH)) {
           Draws a straight line to a given point.
@@ -258,11 +239,27 @@ document (|
         +command (`split-at`) (tPOS --> (tPATH --> tTUPLE tPATH [tPATH])) {
           Splits a path in two at a given position.
         }
-        +command (`split-into-at`) (tPOS --> (tF --> (tPATH --> tLIST tPATH))) {
-          Splits a path into a given number of subpaths, starting at a given position. The division number can be fractional and/or negative. When positive, the fractioned subpath comes in last. When negative, comes in first. Passing a zero returns an empty list.
+        % +diagram {
+        %   \stylo((0cm, 2cm, 2cm))(
+        %     open Path in
+        %     let start = start-from (0cm, 0cm) in
+        %     let arc-by = arc-by-around (0cm, 1cm) in
+        %     let circle = start |> arc-by (Degrees 360.0) |> finish in
+        %     let count = 5 in
+        %     circle
+        %     |> List.repeat count
+        %     |> List.mapi (fun i f -> f
+        %       |> split-at (Scale (Float.of-int (i + 1) *. 1.0 /. Float.of-int count))
+        %       |> Pair.fst
+        %       |> solid
+        %       |> Footage.translate (-5cm +' 2.5cm *' Float.of-int i, 0cm))
+        %   );
+        % }
+        +command (`split-into`) (tI --> (tPATH --> tLIST tPATH)) {
+          Splits a path into a given number of subpaths. Passing a zero returns an empty list.
         }
-        +command (`split-incr-at`) (tPOS --> (tPOS --> (tPATH --> tLIST tPATH))) {
-          Splits a path in increments of a second given position, starting at a first given position. The incremental position can be negative. When positive, the fractioned subpath comes in last. When negative, comes in first. Passing a zero always results in an infinite loop. Unusually, when the incremental position longer than the length of the path, no split is performed and it returns just the original path wrapped in a list.
+        +command (`split-incr`) (tPOS --> (tPATH --> tLIST tPATH)) {
+          Splits a path in increments of a given position. The incremental position can be negative. When positive, the fractioned subpath comes in last, and vice versa. Passing a zero always results in an infinite loop. Unusually, when the incremental position longer than the length of the path, no split is performed and it returns just the original path wrapped in a list.
         }
       >
       +subsection {Trimming} <
@@ -289,7 +286,7 @@ document (|
           TBW
         }
         +command (`length-of`) (tPATH --> (tL)) {
-          Measures the total length of a given path. The returned length is an approximate value within the set tolerance.
+          Measures the total length of a given path. The returned length is an approximate value within the set tolerance, especially when the path has some curves.
         }
       >
       +subsection {Areas} <
@@ -317,7 +314,7 @@ document (|
 
     +section {Transforming paths} <
       +p {
-        Stylo supports affine transformations of points, paths and graphics. Not implemented yet.
+        Stylo supports affine transformations of paths and footages. Not implemented yet.
       }
     >
   >
@@ -330,7 +327,7 @@ document (|
 
     +section {Grid layout} <
       +p {
-        An equivalent feature to \Xy;-matrices of \Xy;-pic. Not implemented yet.
+        An equivalent feature to \Xy;-matrix of \Xy;-pic. Not implemented yet.
       }
     >
   >

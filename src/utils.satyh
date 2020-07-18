@@ -4,9 +4,16 @@
 
 % utilities
 let half-length l = l /' 2.0cm |> Length.of-cm
+let half-pi = Float.pi *. 0.50000000001
 
-let radians-to-degrees t = t /. Float.pi *. 180.0
-let degrees-to-radians t = t *. Float.pi /. 180.0
+let mod-float l2 l1 = l1 -. l2 *. (l1 /. l2 |> Float.floor)
+let mod-length l2 l1 = l1 -' l2 *' (l1 /' l2 |> Float.floor)
+
+let truncate f = open Float in
+  if f == 0.0 then 0.0 else
+  if 0.0 < f
+  then floor f
+  else ceil f
 
 let (+'') (ax, ay) (bx, by) = (ax +' bx, ay +' by)
 let (-'') (ax, ay) (bx, by) = (ax -' bx, ay -' by)
@@ -15,8 +22,8 @@ let (/'.) (ax, ay) b = (ax /' (b |> Length.of-cm) |> Length.of-cm, ay /' (b |> L
 
 type polarity = Negative | Zero | Positive
 
-let sign-of-int i = if i == 0 then 0 else i / Int.abs i
-let sign-of-float f = if Float.is-zero f then 0.0 else f /. Float.abs f
+let sign-int i = open Int in if i == 0 then 0 else i / abs i
+let sign-float f = open Float in if f == 0.0 then 0.0 else f /. abs f
 let polarity-of-float f = open Float in
   if is-zero f then Zero
   else if f < 0.0 then Negative
@@ -48,11 +55,22 @@ let distance v0 v1 = line-segment (v0, v1) |> length
 let normalize v = v /'. (length v /' 1cm) |> point-length-to-float
 
 let is-almost-zero l = open Float in
-  abs (l /' 1cm) < 0.0001
-let is-almost l1 l2 = open Float in
+  abs (l /' 1cm) < 0.001
+let length-almost-equal l1 l2 =
   l1 -' l2 |> is-almost-zero
 let is-almost-zero-distance-to p1 p2 = open Float in
   distance p1 p2 |> is-almost-zero
+
+let bool-equal b0 b1 =
+  if b0
+  then if b1 then true else false
+  else if b1 then false else true
+
+let float-almost-equal f1 f2 = open Float in
+  abs (f1 -. f2) < 0.001
+
+let (=~.) = float-almost-equal
+let (=~') = length-almost-equal
 
 let dot-product (v0x, v0y) (v1x, v1y) = (v0x *. v1x) +. (v0y *. v1y)
 let cross-product (v0x, v0y) (v1x, v1y) = (v0x *. v1y) -. (v0y *. v1x)
