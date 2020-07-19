@@ -15,31 +15,71 @@ document (|
   +diagram {
     \stylo((0cm, 2cm, 2cm))(
       open Path in
-      let s = (0cm, -1cm) in
-      let n = (0cm, 1cm) in
       [
-        start-from s
-        |> arc-thru-to n (4cm, 0cm)
-        |> arc-thru-to s (2cm, 0cm)
-        |> arc-thru-to n (1cm, 0cm)
-        |> arc-thru-to s (0.5cm, 0cm)
-        |> arc-thru-to n (0.25cm, 0cm)
-        |> arc-thru-to s (0cm, 0cm)
-        |> arc-thru-to n (-0.25cm, 0cm)
-        |> arc-thru-to s (-0.5cm, 0cm)
-        |> arc-thru-to n (-1cm, 0cm)
-        |> arc-thru-to s (-2cm, 0cm)
-        |> arc-thru-to n (-4cm, 0cm)
+        start-from (0cm, 0cm)
+        |> line-to (0cm, 1cm)
+        |> arc-to-with-tangents (0cm, 0cm) (1cm, 0cm)
+        |> line-to (0cm, 0cm)
+        |> finish
         |> solid;
+        start-from (0cm, 0cm)
+        |> line-to (0.5cm, 0.5cm)
+        |> arc-to-with-tangents (1cm, 0cm) (1cm, 2cm)
+        |> line-to (1cm, 0cm)
+        |> finish
+        |> solid
+        |> Footage.translate (2cm, 0cm);
       ]
     );
   }
+  % +diagram {
+  %   \stylo((0cm, 2cm, 2cm))(
+  %     open Path in
+  %     let s = (0cm, -1cm) in
+  %     let n = (0cm, 1cm) in
+  %     [
+  %       start-from s
+  %       |> arc-thru-to n (3cm, 0cm)
+  %       |> arc-thru-to s (2cm, 0cm)
+  %       |> arc-thru-to n (1cm, 0cm)
+  %       |> arc-thru-to s (0.5cm, 0cm)
+  %       |> arc-thru-to n (0cm, 0cm)
+  %       |> arc-thru-to s (-0.5cm, 0cm)
+  %       |> arc-thru-to n (-1cm, 0cm)
+  %       |> arc-thru-to s (-2cm, 0cm)
+  %       |> arc-thru-to n (-3cm, 0cm)
+  %       |> solid;
+  %     ]
+  %   );
+  % }
 
 
   +chapter {Getting started} <
     +p {
       To use Stylo in your document, at first you need to `@require: stylo/stylo`. TBW
     }
+    +code (`
+      +diagram {
+        \stylo((0cm, 2cm, 2cm))(
+          open Path in
+          let s = (0cm, -1cm) in
+          let n = (0cm, 1cm) in
+          [
+            start-from s
+            |> arc-thru-to n (3cm, 0cm)
+            |> arc-thru-to s (2cm, 0cm)
+            |> arc-thru-to n (1cm, 0cm)
+            |> arc-thru-to s (0.5cm, 0cm)
+            |> arc-thru-to n (0cm, 0cm)
+            |> arc-thru-to s (-0.5cm, 0cm)
+            |> arc-thru-to n (-1cm, 0cm)
+            |> arc-thru-to s (-2cm, 0cm)
+            |> arc-thru-to n (-3cm, 0cm)
+            |> solid;
+          ]
+        );
+      }
+    `);
   >
 
 
@@ -170,7 +210,7 @@ document (|
           Closes a path if the last point is meeting to the starting point, elsewise leaves it open.
         }
         +command (`restart`) (tPATH --> tPATH) {
-          Opens a path if closed. Usually you don't need to use this construct because most other constructs implicitly reopen if closed.
+          Opens a path if closed. Usually you don't need to use this construct because most constructs implicitly reopen when applied to a closed path.
         }
         +command (`restart-at`) (tPOS --> (tPATH --> tPATH)) {
           Restarts the path from a given position. The path portion after the position is discarded.
@@ -198,13 +238,13 @@ document (|
           Draws an arc around a given point which is a given length away from the current point orthogonally to the current tangent, with a given angle. Positive length means the left direction.
         }
         +command (`arc-to-with-tangents`) (tPT --> (tPT --> (tPATH --> tPATH))) {
-          Draws an arc, followed by a line if needed, to the first given point, referring the current tangent and the second given point as a forwarding tangent. As a result, the arc drawn is smoothly tangented to the current path and also to the subsequent construct as long as it uses the identical point to the forwarding tangent as its starting tangent. See the illustration below:
+          Draws an arc, surrounded by zero or supplemental line for each side if needed to smoothly tangent the arc to the current tangent and the forwarding tangent specified by a first given point. Thereby the next segment shall be smoothly connected as long as it starts for the identical direction of the forwarding tangent. See the example below:
         }
         +demo () (
           []
         );
         +command (`arc-to-with-tangents-counter`) (tPT --> (tPT --> (tPATH --> tPATH))) {
-          Same as `arc-to-with-tangents`, except that it draws the counter arc against what `arc-to-for` draws thereby tangented like a pair of needles. Not implemented yet.
+          Same as `arc-to-with-tangents`, except that it draws the counter arc against what `arc-to-with-tangents` draws thereby tangented like a pair of needles. Not implemented yet.
         }
       >
       +subsection {Tracing another path} <

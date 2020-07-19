@@ -53,7 +53,7 @@ module Path : sig
   val arc-by-around: point -> angle -> stylo-path -> stylo-path
   val arc-thru-to: point -> point -> stylo-path -> stylo-path
   val arc-aside: length -> angle -> stylo-path -> stylo-path
-  %val arc-to-with-tangents: point -> point -> stylo-path -> stylo-path
+  val arc-to-with-tangents: point -> point -> stylo-path -> stylo-path
 
   val split-at: position -> stylo-path -> stylo-path * stylo-path
   val split-into: int -> stylo-path -> stylo-path list
@@ -109,8 +109,8 @@ end = struct
   let last-point-of path = endpoint-of <| last-segment-of path
 
 
-  let start-from s = Open (BezierTo (s, s, s), [])
-  let start-with-tangent t s = Open (BezierTo (t, s, s), [])
+  let start-from s = Open (LineTo s, [])
+  let start-with-tangent t s = Open (BezierTo (s, t, s), [])
 
   let restart path = match path with
     | Open (first, rest) -> Open (first, rest)
@@ -143,16 +143,21 @@ end = struct
     | Closed _ -> true
     | Open _ -> false
 
+  let unwrap path = match path with
+    | Open path -> path
+    | Closed path -> path
+
   let current-tangent-of path =
-    let first = first-segment-of path in
-    let (head :: tail) = segments-of path in
-    match head with
-    | LineTo e -> (match tail with
-      | [] -> (e, endpoint-of first)
-      | head :: _ -> (match head with
-        | LineTo ep -> (e, ep)
-        | BezierTo (_, _, ep) -> (e, ep)))
-    | BezierTo (_, cp2, e) -> (e, cp2)
+    let (first, rest) = unwrap path in
+    match rest with
+    | [] -> (match first with
+      | BezierTo (_, eb, e) -> (e, eb)
+      | LineTo e -> (e, e))
+    | head :: tail -> (match head with
+      | BezierTo (_, eb, e) -> (e, eb)
+      | LineTo e -> (match tail with
+        | [] -> (e, endpoint-of first)
+        | head :: _ -> (e, endpoint-of head)))
 
 
   let length-of-line (s, e) = distance s e
@@ -426,36 +431,88 @@ end = struct
   %   |> shift-path s
   %   |> unite-path (p |> terminate)
 
+  let offset-point-towards-vector towards offset point =
+    let direction = towards |> normalize |> point-float-to-length in
+    let o = direction *'. (offset /' 1cm) in
+    point +'' o
 
-  % let arc-to-with-tangents f t p =
-  %   open Float in
-  %   let ts = current-tangent p in
-  %   let te = (t, f) in
-  %   let (s, sb) = ts in
-  %   let (e, eb) = te in
-  %   if is-zero-distance-to s e then p else
-  %   let desired-endpoints-of-arc =
-  %     match intersection-point-of ts te with
-  %     | None -> % when parallel
-  %       if is-on-same-line ts te then p |> line-to e else
-  %       if ! is-same-azimuth ts te then p |> line-to e else
-  %       if ! is-endpoints-aligned-orthogonally ts te then p |> line-to e else
-  %     | Some i ->
-  %       let is = (s, i) in
-  %       let ie = (e, i) in
-  %       let longer = max is ie in
-  %       let shorter = min is ie in
-  %         match polarity-of-float d with
-  %         | Zero -> (p, s, e)
-  %         | Negative ->
-  %           let x = intersection-point-of (s, sb) (e, rotate-point-around e (Float.pi *. 0.5) eb) |> Option.unwrap-or s in
-  %           (p |> line-to x, x, e)
-  %         | Positive ->
-  %           let x = intersection-point-of (e, eb) (s, rotate-point-around s (Float.pi *. 0.5) sb) |> Option.unwrap-or e in
-  %           (p, s, x)
-  %   in
-  %   let (p, s, e) = desired-endpoints-of-arc in
-  %   p |> arc-to-around
+  let arc-to-with-tangents f t path =
+    open Float in
+    let (s, sb) = current-tangent-of path in
+    let (e, eb) = (t, f) in
+    if is-almost-zero-distance-to s e then path else
+    match intersection-point-of (s, sb) (e, eb) with
+    | None -> % when parallel
+      path |> line-to e % FIXME
+    | Some i ->
+      let is-ts-towards-i =
+        let d = dot-product-normalized-lines-of (s, sb) (i, s) in
+        d == 1.0 in
+      let is-te-towards-i =
+        let d = dot-product-normalized-lines-of (e, eb) (i, e) in
+        d == 1.0 in
+      let (path, s, e) =
+        match (is-ts-towards-i, is-te-towards-i) with
+        | (true, true) ->
+          let ds = distance i s in
+          let de = distance i e in
+          if ds <' de
+          then
+            let o = distance i s in
+            let d = line-segment (e, i) in
+            let e = i |> offset-point-towards-vector d o in
+            (path, s, e)
+          else if de <' ds
+          then
+            let o = distance i e in
+            let d = line-segment (s, i) in
+            let s = i |> offset-point-towards-vector d o in
+            (path |> line-to s, s, e)
+          else (path, s, e)
+        | (true, false) ->
+          let o = distance i e in
+          let d = line-segment (s, sb) in
+          let s = i |> offset-point-towards-vector d o in
+          (path |> line-to s, s, e)
+        | (false, true) ->
+          let o = distance i s in
+          let d = line-segment (e, eb) in
+          let e = i |> offset-point-towards-vector d o in
+          (path, s, e)
+        | (false, false) ->
+          let ds = distance i s in
+          let de = distance i e in
+          if de <' ds
+          then
+            let o = distance i s in
+            let d = line-segment (e, i) in
+            let e = i |> offset-point-towards-vector d o in
+            (path, s, e)
+          else if ds <' de
+          then
+            let o = distance i e in
+            let d = line-segment (s, i) in
+            let s = i |> offset-point-towards-vector d o in
+            (path |> line-to s, s, e)
+          else (path, s, e)
+      in
+      let is = (s, i) in
+      let ie = (e, i) in
+      let m = centerpoint (s, e) in
+      let im = (m, i) in
+      let nim = line-segment im in
+      let dis = distance i s in
+      let dim = distance i m in
+      let sec = dis /' dim |> Length.of-cm in
+      let q = i |> offset-point-towards-vector nim sec in
+      let dqs = distance q s in
+      let dqm = distance q m in
+      let cos = dqm /' dqs in
+      let a = 2.0 *. (pi -. acos cos) in
+      let _ = Debug.print (String.of-float a) in
+      let c = cross-product-normalized-lines-of (s, i) (e, i) in
+      let a = if c < 0.0 then Float.neg a else a in
+      path |> arc-by-around q (Radians a) |> line-to e
 
 
   let convert-segments-to-internal-pre-path (first, rest) =

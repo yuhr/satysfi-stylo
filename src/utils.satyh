@@ -19,6 +19,10 @@ let (+'') (ax, ay) (bx, by) = (ax +' bx, ay +' by)
 let (-'') (ax, ay) (bx, by) = (ax -' bx, ay -' by)
 let (*'.) (ax, ay) b = (ax *' b, ay *' b)
 let (/'.) (ax, ay) b = (ax /' (b |> Length.of-cm) |> Length.of-cm, ay /' (b |> Length.of-cm) |> Length.of-cm)
+let (+..) (ax, ay) (bx, by) = (ax +. bx, ay +. by)
+let (-..) (ax, ay) (bx, by) = (ax -. bx, ay -. by)
+let (*..) (ax, ay) b = (ax *. b, ay *. b)
+let (/..) (ax, ay) b = (ax /. b, ay /. b)
 
 type polarity = Negative | Zero | Positive
 
@@ -43,6 +47,7 @@ let point-float-to-length (vx, vy) =
 
 let line-segment ((px, py), (qx, qy)) =
   (px -' qx, py -' qy)
+let vector-to-from s e = line-segment (e, s)
 let length seg =
   let (x, y) = seg |> point-length-to-float in
   ((x *. x) +. (y *. y)) |> Float.sqrt |> Length.of-cm |> Length.abs
@@ -117,11 +122,13 @@ let intersection-point-of s0 s1 =
   let (e, eb) = s1 in
   let vs = s -'' sb |> point-length-to-float in
   let ve = e -'' eb |> point-length-to-float in
-  let v = e -'' s |> point-length-to-float in
   let c = cross-product vs ve in
+  let (x, y) = vs in
+  %let _ = Debug.print <| (show-float x) ^ `,` ^ (show-float y) in
   if c == 0.0
   then None
   else
+    let v = e -'' s |> point-length-to-float in
     let el = cross-product v vs /. cross-product vs ve in
     Some (e +'' ((ve |> point-float-to-length) *'. el))
 
