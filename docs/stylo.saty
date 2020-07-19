@@ -21,12 +21,16 @@ document (|
         |> arc-to-with-tangents (0cm, 0cm) (1cm, 0cm)
         |> line-to (0cm, 0cm)
         |> finish
+        |> rotate (Degrees 45.0)
+        |> scale (1.0, 2.0)
+        |> translate (-2cm, 0cm)
         |> solid;
         start-from (0cm, 0cm)
         |> line-to (0.5cm, 0.5cm)
         |> arc-to-with-tangents (1cm, 0cm) (1cm, 2cm)
         |> line-to (1cm, 0cm)
         |> finish
+        |> rotate (Degrees 45.0)
         |> solid
         |> Footage.translate (2cm, 0cm);
       ]
@@ -184,7 +188,10 @@ document (|
 
     +section {Footages} <
       +p {
-        A footage is a ready-to-render object containing a decorated path or a label, but still accepts some manipulations such as affine transformations and configurations of contextual options.
+        A footage is a ready-to-render object containing a decorated path or a label, but still accepts some configurations of contextual options.
+      }
+      +p {
+        Internally, a footage is just a function which takes a context and returns a graphics.
       }
     >
   >

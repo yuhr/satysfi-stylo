@@ -16,6 +16,10 @@
 
 type position = Scale of float | Length of length
 type angle = Radians of float | Degrees of float
+type matrix =
+  (float * float * float) *
+  (float * float * float) *
+  (float * float * float)
 
 let as-length-against l p = match p with
   | Length p -> p
@@ -67,6 +71,11 @@ module Path : sig
 
   val solid: stylo-path -> Footage.footage
 
+  val translate: length * length -> stylo-path -> stylo-path
+  val rotate: angle -> stylo-path -> stylo-path
+  val scale: float * float -> stylo-path -> stylo-path
+  val skew: angle * angle -> stylo-path -> stylo-path
+
 end = struct
 
   % backup indentifiers for internals
@@ -117,11 +126,11 @@ end = struct
     | Closed (first, rest) -> Open (first, first :: rest)
 
 
-  let line-to e path =
+  let line-to e path = % FIXME: skip if same point
     let (Open (first, rest)) = restart path in
     Open (first, LineTo e :: rest)
 
-  let bezier-to cpe path =
+  let bezier-to cpe path = % FIXME: skip if all same point
     let (Open (first, rest)) = restart path in
     Open (first, BezierTo cpe :: rest)
 
@@ -509,10 +518,9 @@ end = struct
       let dqm = distance q m in
       let cos = dqm /' dqs in
       let a = 2.0 *. (pi -. acos cos) in
-      let _ = Debug.print (String.of-float a) in
       let c = cross-product-normalized-lines-of (s, i) (e, i) in
       let a = if c < 0.0 then Float.neg a else a in
-      path |> arc-by-around q (Radians a) |> line-to e
+      path |> arc-by-around q (Radians a)
 
 
   let convert-segments-to-internal-pre-path (first, rest) =
@@ -532,6 +540,59 @@ end = struct
       | LineTo _ -> internal-close-with-line
       | BezierTo (cp1, cp2, _) -> internal-close-with-bezier cp1 cp2)
 
+  let map-segment f segment = match segment with
+    | LineTo p1 -> LineTo (f p1)
+    | BezierTo (p1, p2, p3) -> BezierTo (f p1, f p2, f p3)
+
+  let traverse f path =
+    let (first, rest) = unwrap path in
+    let result =
+      let first = first |> map-segment f in
+      let rest = rest |> List.map (map-segment f) in
+      (first, rest)
+    in
+    match path with
+    | Open _ -> Open result
+    | Closed _ -> Closed result
+
+  let apply matrix point =
+    let (
+      (e11, e12, e13),
+      (e21, e22, e23),
+      (e31, e32, e33)
+    ) = matrix in
+    let (p1, p2) = point in
+    (
+      p1 *' e11 +' p2 *' e12 +' 1cm *' e13,
+      p1 *' e21 +' p2 *' e22 +' 1cm *' e23
+    )
+
+  let transform matrix path = path |> traverse (apply matrix)
+
+
+  let translate (x, y) = open Float in (
+    (1.0, 0.0, x /' 1cm),
+    (0.0, 1.0, y /' 1cm),
+    (0.0, 0.0, 1.0)
+  ) |> transform
+
+  let rotate t = open Float in let t = as-radians t in (
+    (cos t, neg <| sin t, 0.0),
+    (sin t, cos t, 0.0),
+    (0.0, 0.0, 1.0)
+  ) |> transform
+
+  let scale (x, y) = open Float in (
+    (x, 0.0, 0.0),
+    (0.0, y, 0.0),
+    (0.0, 0.0, 1.0)
+  ) |> transform
+
+  let skew (x, y) = open Float in (
+    (1.0, tan <| as-radians y, 0.0),
+    (tan <| as-radians x, 1.0, 0.0),
+    (0.0, 0.0, 1.0)
+  ) |> transform
 
   let stroke l c p = internal-stroke l c (convert-path-to-internal-path p)
 
